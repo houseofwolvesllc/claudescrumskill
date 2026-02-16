@@ -1,8 +1,6 @@
 ---
 name: sprint-status
 description: Generate a status report for the current sprint. Shows progress by story, executor breakdown, burndown, blockers, and items needing attention. Use for daily standups, mid-sprint check-ins, or when asked about project progress.
-allowed-tools: Bash, Read, Grep
-argument-hint: [owner/repo] [project-number]
 ---
 
 # Sprint Status
@@ -59,6 +57,7 @@ Group all sprint stories into:
 
 ### Burndown
 <done_points> / <total_points> points completed
+<Simple ASCII progress bar>
 [████████░░░░░░░░] 50%
 
 ### Completed
@@ -67,7 +66,7 @@ Group all sprint stories into:
 | 12 | User auth endpoint | claude | 5 | 2h ago |
 ...
 
-### In Progress
+### In Progress  
 | # | Title | Executor | Points | Status |
 |---|-------|----------|--------|--------|
 | 14 | API key provisioning | human | 2 | PR open |
@@ -86,10 +85,26 @@ Group all sprint stories into:
 ...
 
 ### Executor Summary
-- Claude: <done>/<total> stories (<points> pts done)
-- Human: <done>/<total> stories (<points> pts done)
-- Cowork: <done>/<total> stories (<points> pts done)
+- **Claude:** <done>/<total> stories (<points> pts done)
+- **Human:** <done>/<total> stories (<points> pts done)
+- **Cowork:** <done>/<total> stories (<points> pts done)
 
-### Recommendations
-<Actionable suggestions: unblock items, re-prioritize, adjust scope if behind>
+### Release Branch Health
+- **Branch:** release/<slug>
+- **PRs merged:** <N>
+- **CI status:** <passing/failing>
+- **Merge conflicts:** <none/details>
+
+### Risks & Notes
+<Any observations: pace concerns, scope creep, blocked items needing escalation>
 ```
+
+### Step 4: Actionable Recommendations
+
+Based on the status, suggest next actions:
+
+- If Claude stories are `ready-for-work`, suggest picking them up
+- If human stories are overdue, flag them prominently
+- If the sprint is behind pace, suggest scope reduction or story deferral
+- If blockers exist, suggest resolution paths
+- If the sprint is nearly complete, suggest running `/sprint-release`

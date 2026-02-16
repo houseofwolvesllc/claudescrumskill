@@ -1,8 +1,6 @@
 ---
 name: project-scaffold
 description: Scaffold a complete GitHub Project from PRD or spec documents. Creates the project board with custom fields and views, milestones for each phase, issues for every story with proper labels and dependencies, and sets up the branch strategy. Use when starting a new project, onboarding a new PRD, or bootstrapping a GitHub Project structure from requirements documents.
-allowed-tools: Bash, Read, Write, Glob, Grep
-argument-hint: <path-to-prd-or-spec-files>
 ---
 
 # Project Scaffold
@@ -21,58 +19,69 @@ The user provides `$ARGUMENTS` which should be one or more file paths to PRD or 
 
 Read all provided documents thoroughly before proceeding.
 
-## Scaffolding Procedure
+## Scaffold Procedure
+
+Execute these steps in order:
 
 ### Step 1: Parse the PRD
 
-Extract from the documents:
-- Project name and description
-- Phases/milestones (ordered)
-- User stories per phase with acceptance criteria
-- Dependencies between stories
-- Any technical architecture notes
+Extract the following from the PRD document(s):
+
+- **Project name** — used for the GitHub Project title
+- **Phases** — major sections of work, each becomes a milestone
+- **Requirements/features** — individual items that become stories
+- **Dependencies** — relationships between features
+- **Any existing technical context** — architecture decisions, tech stack, constraints
+
+Present a summary to the user:
+```
+Project: <name>
+Phases identified: <count>
+  - Phase 1: <name> (<estimated story count> stories)
+  - Phase 2: <name> (<estimated story count> stories)
+  ...
+Total stories: <count>
+```
+
+Ask the user to confirm or adjust before proceeding.
 
 ### Step 2: Create Labels
 
-Create all labels defined in CONVENTIONS.md on the target repo:
+Check which labels already exist in the repo. Create any missing labels from the taxonomy defined in CONVENTIONS.md:
 
 ```bash
-# Executor labels
-gh label create "executor:claude" --color 0E8A16 --description "Claude Code handles this" --repo <owner/repo>
-gh label create "executor:human" --color 1D76DB --description "Requires human judgment" --repo <owner/repo>
-gh label create "executor:cowork" --color D4C5F9 --description "Cowork agent task" --repo <owner/repo>
+# Check existing labels
+gh label list --repo <owner/repo> --json name --jq '.[].name'
 
-# Status signal labels
-gh label create "ready-for-work" --color 0E8A16 --repo <owner/repo>
-gh label create "needs-context" --color FBCA04 --repo <owner/repo>
-gh label create "blocked" --color B60205 --repo <owner/repo>
-gh label create "deferred" --color D93F0B --repo <owner/repo>
-gh label create "rolled-over" --color E99695 --repo <owner/repo>
-
-# Type labels
-gh label create "type:story" --color C2E0C6 --repo <owner/repo>
-gh label create "type:bug" --color D73A4A --repo <owner/repo>
-gh label create "type:spike" --color D4C5F9 --repo <owner/repo>
-gh label create "type:infra" --color 0075CA --repo <owner/repo>
-gh label create "type:chore" --color FEF2C0 --repo <owner/repo>
-
-# Priority labels
-gh label create "P0-critical" --color B60205 --repo <owner/repo>
-gh label create "P1-high" --color D93F0B --repo <owner/repo>
-gh label create "P2-medium" --color FBCA04 --repo <owner/repo>
-gh label create "P3-low" --color 0E8A16 --repo <owner/repo>
-
-# Phase labels (one per PRD phase)
-# gh label create "phase:<N>" --color <color> --repo <owner/repo>
+# Create missing labels (examples)
+gh label create "executor:claude" --color "1d76db" --description "Claude Code handles implementation" --repo <owner/repo>
+gh label create "executor:human" --color "e4e669" --description "Requires human judgment" --repo <owner/repo>
+gh label create "executor:cowork" --color "c2e0c6" --description "Suitable for Cowork/Chrome agent" --repo <owner/repo>
+gh label create "ready-for-work" --color "0e8a16" --description "Fully specced and unblocked" --repo <owner/repo>
+gh label create "needs-context" --color "fbca04" --description "Missing information" --repo <owner/repo>
+gh label create "blocked" --color "d93f0b" --description "Blocked by another issue" --repo <owner/repo>
+gh label create "deferred" --color "cccccc" --description "Pushed to future sprint" --repo <owner/repo>
+gh label create "rolled-over" --color "f9d0c4" --description "Incomplete from previous sprint" --repo <owner/repo>
+gh label create "type:story" --color "5319e7" --repo <owner/repo>
+gh label create "type:bug" --color "d73a4a" --repo <owner/repo>
+gh label create "type:spike" --color "0075ca" --repo <owner/repo>
+gh label create "type:infra" --color "006b75" --repo <owner/repo>
+gh label create "type:chore" --color "ededed" --repo <owner/repo>
+gh label create "P0-critical" --color "b60205" --repo <owner/repo>
+gh label create "P1-high" --color "d93f0b" --repo <owner/repo>
+gh label create "P2-medium" --color "fbca04" --repo <owner/repo>
+gh label create "P3-low" --color "0e8a16" --repo <owner/repo>
 ```
 
 ### Step 3: Create Milestones
 
-For each phase in the PRD:
+Create a milestone for each phase:
 
 ```bash
-gh api repos/<owner/repo>/milestones -f title="Phase N: <Phase Name>" -f description="<Phase summary from PRD>" -f state="open"
+gh api repos/<owner/repo>/milestones -f title="Phase 1: <Phase Name>" -f description="<Phase summary from PRD>" -f state="open"
 ```
+
+Capture the milestone number returned for each, as it's needed when creating issues.
 
 ### Step 4: Create the GitHub Project
 
@@ -123,14 +132,28 @@ For any stories with dependencies, add cross-references:
 # Ensure main is up to date
 git checkout main && git pull
 
-# Create release branch for the first phase/sprint
+# Create development branch if it doesn't exist
+if ! git ls-remote --heads origin development | grep -q development; then
+  git checkout -b development
+  git push -u origin development
+else
+  git checkout development && git pull
+fi
+
+# Create release branch for the first phase/sprint off development
 git checkout -b release/<first-milestone-slug>
 git push -u origin release/<first-milestone-slug>
 ```
 
-### Step 8: Configure Branch Protection
+### Step 8: Configure Branch Protection (if user has admin access)
 
-Attempt to set branch protection rules as defined in CONVENTIONS.md. If permissions are insufficient, output the recommended settings for the user to configure manually.
+Attempt to set branch protection rules as defined in CONVENTIONS.md. Note the three-tier model:
+
+- **main** — human-only write access, require PR reviews, gh PAT has NO bypass
+- **development** — require status checks, require PR reviews for release merges
+- **release/*** — require status checks, allow auto-merge when CI passes
+
+If permissions are insufficient, output the recommended settings for the user to configure manually. In particular, emphasize that the gh PAT must NOT be granted write bypass on main — this is a deliberate security boundary.
 
 ### Step 9: Generate Summary
 
@@ -150,12 +173,14 @@ Output a complete summary:
 
 ### Story Breakdown by Executor
 - executor:claude — <N> stories (<points> points)
-- executor:human — <N> stories (<points> points)
+- executor:human — <N> stories (<points> points)  
 - executor:cowork — <N> stories (<points> points)
 
 ### Branch Structure
-- Release branch: release/<slug> (created)
+- Development branch: development (created)
+- Release branch: release/<slug> (created from development)
 - Branch protection: <configured/manual setup needed>
+- NOTE: Ensure main branch protection excludes the gh PAT from write access
 
 ### Next Steps
 1. Review the project board: <link>

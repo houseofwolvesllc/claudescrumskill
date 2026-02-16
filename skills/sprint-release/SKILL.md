@@ -1,13 +1,11 @@
 ---
 name: sprint-release
-description: Close out the current sprint and prepare a release. Generates a sprint summary, opens a release PR from the release branch into main, and transitions incomplete stories. Use when a sprint is complete or at the sprint boundary.
-allowed-tools: Bash, Read, Write, Glob, Grep
-argument-hint: [owner/repo] [project-number]
+description: Wrap up a sprint by generating a release summary, opening the release PR to main for human review, handling incomplete stories, and preparing for the next sprint. Use when a sprint is complete or at the sprint boundary deadline.
 ---
 
 # Sprint Release
 
-Close the current sprint and open a release PR.
+Close out a sprint: summarize work, handle incomplete stories, open the release PR for review.
 
 ## Before You Start
 
@@ -21,80 +19,167 @@ If not provided, detect from the current git remote or ask the user.
 
 ## Release Procedure
 
-### Step 1: Verify Sprint State
+### Step 1: Sprint Inventory
+
+Gather the complete picture of the sprint:
 
 ```bash
-# Check for any stories still "In Progress" — warn before proceeding
-# Count completed vs incomplete stories
-# Get the release branch name for the current milestone
-```
+# All issues assigned to the current sprint
+# Closed issues (completed work)
+gh issue list --repo <owner/repo> --state closed --milestone "<Phase N: Name>" --json number,title,labels,closedAt
 
-If stories are still in progress, warn the user and ask whether to:
-- Wait for completion
-- Roll incomplete stories to next sprint
-- Proceed anyway (mark as rolled-over)
+# Still-open issues in the sprint (incomplete work)
+gh issue list --repo <owner/repo> --state open --milestone "<Phase N: Name>" --json number,title,labels
+
+# All merged PRs to the release branch
+gh pr list --repo <owner/repo> --base release/<milestone-slug> --state merged --json number,title,mergedAt,body
+
+# Check CI on release branch
+gh run list --repo <owner/repo> --branch release/<milestone-slug> --limit 5
+```
 
 ### Step 2: Handle Incomplete Stories
 
-For any stories not marked Done:
-- Add the `rolled-over` label
-- Remove from current sprint iteration
-- Note them in the release summary
+For any stories that are still open:
 
-### Step 3: Generate Release Summary
+1. **In Progress (PR open but not merged):**
+   - Ask the user: merge now, or roll over?
+   - If rolling over, move to next sprint iteration
 
-Build a comprehensive changelog from the sprint:
+2. **Ready (never started):**
+   - Add `rolled-over` label
+   - Move to next sprint iteration
+   - Adjust priority if needed
 
+3. **Blocked:**
+   - Note the blocker in the release summary
+   - Keep in backlog with `blocked` label
+   - Do NOT auto-assign to next sprint
+
+For each rolled-over story:
 ```bash
-# Get all merged PRs on the release branch
-gh pr list --repo <owner/repo> --base release/<slug> --state merged --json number,title,labels,mergedAt,body
-
-# Get all closed issues from this sprint
-gh issue list --repo <owner/repo> --state closed --label "type:story" --json number,title,labels,closedAt
+gh issue edit <number> --repo <owner/repo> --add-label "rolled-over"
+# Update sprint iteration field via GraphQL to next sprint
 ```
 
-### Step 4: Open Release PR
+### Step 3: Build the Release PR Body
 
-```bash
-gh pr create \
-  --repo <owner/repo> \
-  --base main \
-  --head release/<milestone-slug> \
-  --title "Release: Sprint <N> — <Phase Name>" \
-  --body "<Release summary markdown>"
-```
+Compose a comprehensive PR description:
 
-The PR body should include:
-- Sprint summary (stories completed, points delivered)
-- Full changelog (each story with brief description)
-- Rolled-over items (if any)
-- Notable technical changes
-- Any known issues or follow-ups
+```markdown
+## Sprint <N> Release — <Phase Name>
 
-### Step 5: Close Sprint Iteration
+**Sprint Dates:** <start> — <end>
+**Stories Completed:** <done>/<planned> (<percentage>%)
+**Story Points Delivered:** <done_points>/<planned_points>
 
-- Mark the sprint iteration as complete (via GraphQL)
-- Update milestone progress
+### What's in This Release
 
-### Step 6: Output Release Summary
+<2-3 paragraph narrative summary of what was accomplished this sprint. 
+Write this in plain language suitable for a project stakeholder.
+Focus on capabilities delivered, not implementation details.>
 
-```
-## Sprint <N> Release
+### Completed Stories
 
-**Release PR:** #<pr-number> — <link>
-**Branch:** release/<slug> → main
-**Stories Delivered:** <count> (<points> points)
-
-### Changelog
-- #12 User auth endpoint (5 pts)
-- #13 Database schema migration (3 pts)
-- #14 API key provisioning (2 pts)
+| # | Title | Executor | Points |
+|---|-------|----------|--------|
+| 12 | User auth endpoint | claude | 5 |
+| 13 | Login UI component | claude | 3 |
+| 14 | API key provisioning | human | 2 |
 ...
 
-### Rolled Over
-- #18 Rate limiting (3 pts) — moved to next sprint
+### Deferred / Rolled Over
+
+| # | Title | Reason | Next Sprint |
+|---|-------|--------|-------------|
+| 18 | Rate limiting | Not started — capacity | Sprint 2 |
+...
+
+### Technical Notes
+
+<Any architectural decisions made during the sprint, 
+tech debt introduced, patterns established, or concerns 
+for the reviewer to be aware of.>
+
+### Test Coverage
+
+<Summary of test status: what's covered, any gaps, CI status>
+
+### Merge Checklist
+
+- [ ] CI passing on release branch
+- [ ] All sprint stories accounted for (completed or deferred)
+- [ ] No merge conflicts with main
+- [ ] Reviewed release summary above
+```
+
+### Step 4: Open the Release PR
+
+The release PR targets `development`, NOT `main`. The development → main promotion is a separate, human-initiated production release.
+
+```bash
+# Ensure release branch is up to date
+git checkout release/<milestone-slug> && git pull
+
+# Check for conflicts with development
+git fetch origin development
+git merge-tree $(git merge-base HEAD origin/development) HEAD origin/development
+
+# Open the PR targeting development
+gh pr create \
+  --repo <owner/repo> \
+  --base development \
+  --head release/<milestone-slug> \
+  --title "Release: Sprint <N> — <Phase Name>" \
+  --body "<release PR body from Step 3>" \
+  --reviewer <owner> \
+  --label "type:release"
+```
+
+If there are merge conflicts with development:
+- Report them clearly to the user
+- Offer to resolve them or flag for manual resolution
+- Do NOT open the PR until conflicts are resolved
+
+### Step 5: Close the Milestone (if phase is complete)
+
+If all stories in the milestone are complete (no open issues remaining):
+
+```bash
+gh api repos/<owner/repo>/milestones/<milestone-number> -f state="closed"
+```
+
+If stories remain, keep the milestone open for the next sprint.
+
+### Step 6: Generate Release Report
+
+```
+## Sprint <N> Release Complete
+
+**Release PR:** #<pr-number> — awaiting your review
+**Branch:** release/<slug> → development
+
+### Sprint Scorecard
+- **Velocity:** <points_completed> points (target was <planned_points>)
+- **Completion:** <percentage>% of planned stories
+- **Claude efficiency:** <claude_done>/<claude_planned> stories completed
+- **Rolled over:** <count> stories → Sprint <N+1>
+
+### Phase Progress
+- **<Phase Name>:** <closed_issues>/<total_issues> stories complete (<percentage>%)
+- **Milestone status:** <open/closed>
 
 ### Next Steps
-1. Review and merge the release PR: <link>
-2. Run `/sprint-plan` to start the next sprint
+1. **Review the release PR:** <link to PR>
+2. **Merge to development** when satisfied
+3. Run `/sprint-plan` to plan Sprint <N+1>
+<If milestone/phase complete:>
+4. Phase <N> is complete! Consider promoting development → main for a production release.
 ```
+
+## Error Handling
+
+- If no release branch exists, warn the user and suggest running `/sprint-plan` first
+- If CI is failing on the release branch, flag prominently and do not open PR
+- If there are no completed stories, ask the user if they want to cancel the sprint instead
+- Always preserve incomplete work — never close issues that aren't done

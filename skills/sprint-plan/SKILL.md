@@ -1,8 +1,6 @@
 ---
 name: sprint-plan
 description: Plan the next sprint iteration for a GitHub Project. Pulls stories from the backlog, assigns them to the upcoming sprint based on priority and capacity, and prepares the sprint for execution. Use when starting a new sprint cycle or when re-planning mid-sprint.
-allowed-tools: Bash, Read, Write, Glob, Grep
-argument-hint: [owner/repo] [project-number]
 ---
 
 # Sprint Plan
@@ -54,11 +52,33 @@ Fill the sprint in this priority order:
 
 1. **Rolled-over stories** from previous sprint (label: `rolled-over`)
 2. **Blocked items that are now unblocked** (remove `blocked` label, add `ready-for-work`)
-3. **P0-Critical stories** from the active milestone/phase
-4. **P1-High stories** from the active milestone/phase
-5. **P2-Medium and P3-Low** to fill remaining capacity
+3. **P0-critical** stories from the current phase milestone
+4. **P1-high** stories from the current phase milestone
+5. **P2-medium** stories if capacity remains
+6. **Dependencies-first** — if story B depends on story A, include A before B
 
-Stop when the total story points reach the velocity target. Present the proposed sprint to the user for approval before assigning.
+Stop when total story points reach the velocity target. Present the proposed sprint:
+
+```
+## Proposed Sprint <N>
+
+**Dates:** <start> — <end>
+**Capacity:** <velocity> points
+**Planned:** <total points> points
+
+| # | Title | Points | Executor | Priority | Phase |
+|---|-------|--------|----------|----------|-------|
+| 12 | User auth endpoint | 5 | claude | P1-high | Phase 1 |
+| 13 | Login UI component | 3 | claude | P1-high | Phase 1 |
+| 14 | API key provisioning | 2 | human | P1-high | Phase 1 |
+...
+
+**Rolled over:** <count> stories (<points> points)
+**New:** <count> stories (<points> points)
+**Remaining capacity:** <points> points
+```
+
+Ask the user to confirm, adjust, or add/remove stories.
 
 ### Step 4: Assign Sprint
 
@@ -82,8 +102,8 @@ For each story in the sprint:
 # Check if release branch exists for the active milestone
 git ls-remote --heads origin release/<milestone-slug>
 
-# If not, create it
-git checkout main && git pull
+# If not, create it from development
+git checkout development && git pull
 git checkout -b release/<milestone-slug>
 git push -u origin release/<milestone-slug>
 ```

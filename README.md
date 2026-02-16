@@ -180,14 +180,15 @@ Start the next sprint. The cycle continues until the project is complete.
 ### Branch Strategy
 
 ```
-main (protected — requires your review)
- └── release/phase-1-core-api
-      ├── story/1-init-project → auto-merge ✓
-      ├── story/2-database-schema → auto-merge ✓
-      └── story/3-auth-endpoints → auto-merge ✓
+main (human-only — requires your review)
+ └── development (sprint approval gate)
+      └── release/phase-1-core-api
+           ├── story/1-init-project → auto-merge ✓
+           ├── story/2-database-schema → auto-merge ✓
+           └── story/3-auth-endpoints → auto-merge ✓
 ```
 
-Story branches auto-merge into the release branch when CI passes. You only review the release PR to `main`. This keeps Claude unblocked while giving you a single approval gate per sprint.
+Story branches auto-merge into the release branch when CI passes. At sprint end, the release branch merges into `development` after your review. When you're ready to ship, `development` merges into `main`. Two approval gates: one per sprint, one for production.
 
 ### GitHub Project Board
 
