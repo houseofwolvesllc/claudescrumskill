@@ -38,6 +38,8 @@ This copies all skills into `~/.claude/skills/`. All six skills are installed as
 
 Clone the repo and copy the `skills/` contents into `~/.claude/skills/` (global) or `your-repo/.claude/skills/` (per-project). All skill directories must be siblings — `sprint-plan`, `sprint-status`, and `sprint-release` reference `../project-scaffold/references/CONVENTIONS.md` via relative path.
 
+**Note:** After installing, restart Claude Code for the skills to become available.
+
 ## Quick Start
 
 ### 1. Create a Fine-Grained GitHub Personal Access Token
