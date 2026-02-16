@@ -23,7 +23,7 @@ PRD → /project-scaffold → GitHub Project with sprints, stories, branches
 ### npm (recommended)
 
 ```bash
-npm install -g claude-scrum-skill
+npm install -g @houseofwolvesllc/claude-scrum-skill
 ```
 
 This copies all skills into `~/.claude/skills/`. All six skills are installed as siblings so relative paths to shared conventions resolve correctly.
