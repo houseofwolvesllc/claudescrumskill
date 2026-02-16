@@ -1,4 +1,4 @@
-# Contributing to claude-scrum-skill
+# Contributing to claudescrumskill
 
 Thanks for your interest in contributing! Here's how to get involved.
 

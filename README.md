@@ -31,7 +31,7 @@ This copies all skills into `~/.claude/skills/`. All six skills are installed as
 ### Claude Code Plugin Marketplace
 
 ```
-/plugin marketplace add k-gar/claude-scrum-skill
+/plugin marketplace add houseofwolvesllc/claudescrumskill
 ```
 
 ### Manual
@@ -194,7 +194,7 @@ The scaffold creates a GitHub Project (the newer Projects experience, not classi
 | Field | Type | Purpose |
 |---|---|---|
 | Status | Single select | Workflow state: Backlog → Ready → In Progress → In Review → Done |
-| Sprint | Iteration (2-week) | Time-boxed sprint assignment. Supports `@current` and `@next` filters |
+| Sprint | Iteration (2-week) | Time-boxed sprint assignment. Filter views by Milestone to scope to a sprint |
 | Priority | Single select | P0-Critical through P3-Low |
 | Executor | Single select | Who works this: `claude`, `human`, or `cowork` |
 | Story Points | Number | Fibonacci estimation (1, 2, 3, 5, 8, 13) |
@@ -202,7 +202,7 @@ The scaffold creates a GitHub Project (the newer Projects experience, not classi
 
 **Board views** use GitHub's view system:
 
-- **Current Sprint** — Board layout, filtered to `Sprint = @current`, columns by Status
+- **Current Sprint** — Board layout, filtered by Milestone to the active sprint, columns by Status
 - **Claude Queue** — Table layout, filtered to `Executor = claude` and `Status = Ready`, sorted by Priority
 - **By Sprint** — Board layout, grouped by Sprint (creates swimlanes per sprint)
 - **Phase Overview** — Table layout, grouped by Phase, with field sums on Story Points
@@ -246,7 +246,7 @@ Phases map to your PRD structure. If you add new phases later, create a new mile
 ## Tips
 
 - **Chunk large phases** into multiple sprints for natural review gates. If Phase 1 has 30 stories, split it into 2-3 sprints rather than one massive batch.
-- **Use `@current` and `@next`** iteration filters in your board views to always see the active sprint without manually updating filters.
+- **Filter views by Milestone** to scope board views to the active sprint. Update the filter when you move to the next sprint.
 - **Start small.** Scaffold a real but small project first to calibrate your conventions before relying on it for bigger work.
 - **Branch protection is your safety net.** The PAT should not have write access to main. Merges to main always go through your review.
 - **Run `/project-emulate` before releases** to catch permission gaps, missing flows, and dead code before shipping.

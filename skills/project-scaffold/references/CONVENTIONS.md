@@ -22,7 +22,7 @@ Every GitHub Project board MUST include these custom fields:
 
 Create these views on every project board:
 
-1. **Current Sprint** — Board layout, filtered to `Sprint = @current`, columns by Status
+1. **Current Sprint** — Board layout, filtered by Milestone to the active sprint, columns by Status
 2. **Claude Queue** — Table layout, filtered to `Executor = claude` AND `Status = Ready`, sorted by Priority
 3. **My Tasks** — Table layout, filtered to `Executor = human`, grouped by Sprint
 4. **By Sprint** — Board layout, grouped by Sprint (creates swimlanes per sprint)
