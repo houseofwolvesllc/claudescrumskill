@@ -1,0 +1,33 @@
+{
+  "name": "claude-scrum-skill",
+  "version": "1.0.0",
+  "description": "Claude Code skills for scrum project management — PRD to production release pipeline with project scaffolding, sprint planning, status tracking, sprint releases, and full-project emulation testing.",
+  "bin": {},
+  "scripts": {
+    "postinstall": "node bin/install.js"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "skills",
+    "scrum",
+    "sprint",
+    "project-management",
+    "agile",
+    "github-projects"
+  ],
+  "author": "House of Wolves LLC",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/k-gar/claude-scrum-skill.git"
+  },
+  "homepage": "https://github.com/k-gar/claude-scrum-skill#readme",
+  "bugs": {
+    "url": "https://github.com/k-gar/claude-scrum-skill/issues"
+  },
+  "files": [
+    "skills/",
+    "bin/"
+  ]
+}
