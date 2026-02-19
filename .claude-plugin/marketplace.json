@@ -1,0 +1,25 @@
+{
+  "name": "houseofwolvesllc",
+  "owner": {
+    "name": "House of Wolves LLC",
+    "email": "info@houseofwolvesllc.com"
+  },
+  "metadata": {
+    "description": "Claude Code skills for scrum project management — PRD to production release pipeline"
+  },
+  "plugins": [
+    {
+      "name": "claude-scrum-skill",
+      "source": "./",
+      "description": "Complete scrum pipeline — PRD to production release with Claude as scrum master",
+      "category": "project-management",
+      "tags": [
+        "scrum",
+        "sprint",
+        "agile",
+        "github-projects",
+        "project-management"
+      ]
+    }
+  ]
+}

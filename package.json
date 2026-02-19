@@ -27,6 +27,7 @@
     "url": "https://github.com/houseofwolvesllc/claudescrumskill/issues"
   },
   "files": [
+    ".claude-plugin/",
     "skills/",
     "bin/"
   ]

@@ -20,7 +20,22 @@ PRD → /project-scaffold → GitHub Project with sprints, stories, branches
 
 ## Installation
 
-### npm (recommended)
+### Claude Code Plugin Marketplace (recommended)
+
+Add the marketplace and install the plugin:
+
+```
+/plugin marketplace add houseofwolvesllc/claudescrumskill
+/plugin install claude-scrum-skill@houseofwolvesllc
+```
+
+This installs all five skills as a native Claude Code plugin with automatic updates. To update later:
+
+```
+/plugin marketplace update
+```
+
+### npm
 
 ```bash
 npm install -g @houseofwolvesllc/claude-scrum-skill
