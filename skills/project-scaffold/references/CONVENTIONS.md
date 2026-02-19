@@ -16,7 +16,8 @@ Every GitHub Project board MUST include these custom fields:
 | Priority | Single select | `P0-Critical`, `P1-High`, `P2-Medium`, `P3-Low` | Triage priority |
 | Executor | Single select | `claude`, `human`, `cowork` | Who works this story |
 | Story Points | Number | 1, 2, 3, 5, 8, 13 | Fibonacci estimation |
-| Phase | Single select | Derived from PRD phases | Maps back to PRD structure |
+
+**Note:** Epics are tracked via native GitHub Milestones — no custom field needed.
 
 ### Project Board Views
 
@@ -26,7 +27,7 @@ Create these views on every project board:
 2. **Claude Queue** — Filter: Executor = claude AND Status = Ready, Sort by: Priority
 3. **My Tasks** — Filter: Executor = human, Group by: Sprint
 4. **Backlog** — Filter: Status = Backlog, Sort by: Priority
-5. **Phase Overview** — Group by: Phase, Sort by: Priority
+5. **Epic Overview** — Group by: Milestone, Sort by: Priority
 
 ## Label Taxonomy
 
@@ -42,7 +43,6 @@ Create these views on every project board:
 - `needs-context` — Missing information; cannot begin until resolved
 - `blocked` — Dependent on another issue (MUST link blocking issue)
 - `deferred` — Intentionally pushed to a future sprint
-- `rolled-over` — Incomplete from previous sprint, gets priority in next planning
 
 ### Type Labels
 
@@ -55,7 +55,7 @@ Create these views on every project board:
 ### Priority Labels
 
 - `P0-critical` — Blocking release, security issue, or data loss risk
-- `P1-high` — Core functionality for the current phase
+- `P1-high` — Core functionality for the current epic
 - `P2-medium` — Important but not blocking
 - `P3-low` — Nice-to-have, polish, optimization
 
@@ -65,7 +65,7 @@ Create these views on every project board:
 
 - **Main branch:** `main` — production-ready code, human-only write access
 - **Development branch:** `development` — integration branch, gh token has full access
-- **Release branches:** `release/<milestone-slug>` (e.g., `release/phase-1-core-api`)
+- **Release branches:** `release/<epic-slug>` (e.g., `release/core-api`, `release/security-hardening`)
 - **Story branches:** `story/<issue-number>-<short-slug>` (e.g., `story/42-user-auth-endpoint`)
 - **Spike branches:** `spike/<issue-number>-<short-slug>`
 - **Bug fix branches:** `fix/<issue-number>-<short-slug>`
@@ -75,7 +75,7 @@ Create these views on every project board:
 ```
 main (human-only — gh token has NO write access)
  └── development (gh token has full access — sprint approval gate)
-      └── release/phase-1-core-api (sprint release branch)
+      └── release/core-api (epic release branch)
            ├── story/1-init-project-structure
            ├── story/2-database-schema
            ├── story/3-auth-endpoints
@@ -147,19 +147,22 @@ For executor:human — explain why this needs human judgment and what decisions 
 - **Blocks:** [#issue or "none"]
 ```
 
-## Milestone Structure
+## Epic Structure
 
-- Each PRD **phase** becomes a GitHub **milestone**
-- Milestone title format: `Phase N: <Phase Name>` (e.g., `Phase 1: Core API`)
-- Milestone description: Copy the phase summary from the PRD
-- Milestone due date: Derived from sprint cadence and story point estimates
-- Stories are assigned to milestones based on their phase
+Epics are backed by native GitHub Milestones. Each major body of work (PRD phase, feature area, or initiative) becomes a milestone.
+
+- Epic (milestone) title format: `<Epic Name>` (e.g., `Core API`, `Security Hardening`, `Encrypted Journal`)
+- Epic description: Summary of the body of work from the PRD or spec
+- Epic due date: Derived from sprint cadence and story point estimates
+- Stories are assigned to epics (milestones) based on their scope
+
+**Backward compatibility:** Existing milestones named `Phase N: <Name>` are treated as epics without renaming. The skills work with whatever milestone naming convention is already in place.
 
 ## Sprint Cadence
 
 - Default sprint length: **2 weeks** (configurable per project)
 - Sprint naming: `Sprint <N>` within the project's iteration field
-- A phase may span multiple sprints if the work exceeds one cycle
+- An epic may span multiple sprints if the work exceeds one cycle
 - At sprint boundaries, incomplete stories roll to the next sprint with a `rolled-over` label
 
 ## Story Point Guidelines

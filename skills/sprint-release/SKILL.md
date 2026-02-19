@@ -10,7 +10,8 @@ Close out a sprint: summarize work, handle incomplete stories, open the release 
 ## Before You Start
 
 1. Read `../project-scaffold/references/CONVENTIONS.md` for project management standards.
-2. Confirm the `gh` CLI is authenticated.
+2. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in GitHub API commands and code — never in communication with the user.
+3. Confirm the `gh` CLI is authenticated.
 
 ## Input
 
@@ -26,16 +27,16 @@ Gather the complete picture of the sprint:
 ```bash
 # All issues assigned to the current sprint
 # Closed issues (completed work)
-gh issue list --repo <owner/repo> --state closed --milestone "<Phase N: Name>" --json number,title,labels,closedAt
+gh issue list --repo <owner/repo> --state closed --milestone "<Epic Name>" --json number,title,labels,closedAt
 
 # Still-open issues in the sprint (incomplete work)
-gh issue list --repo <owner/repo> --state open --milestone "<Phase N: Name>" --json number,title,labels
+gh issue list --repo <owner/repo> --state open --milestone "<Epic Name>" --json number,title,labels
 
 # All merged PRs to the release branch
-gh pr list --repo <owner/repo> --base release/<milestone-slug> --state merged --json number,title,mergedAt,body
+gh pr list --repo <owner/repo> --base release/<epic-slug> --state merged --json number,title,mergedAt,body
 
 # Check CI on release branch
-gh run list --repo <owner/repo> --branch release/<milestone-slug> --limit 5
+gh run list --repo <owner/repo> --branch release/<epic-slug> --limit 5
 ```
 
 ### Step 2: Handle Incomplete Stories
@@ -67,7 +68,7 @@ gh issue edit <number> --repo <owner/repo> --add-label "rolled-over"
 Compose a comprehensive PR description:
 
 ```markdown
-## Sprint <N> Release — <Phase Name>
+## Sprint <N> Release — <Epic Name>
 
 **Sprint Dates:** <start> — <end>
 **Stories Completed:** <done>/<planned> (<percentage>%)
@@ -75,7 +76,7 @@ Compose a comprehensive PR description:
 
 ### What's in This Release
 
-<2-3 paragraph narrative summary of what was accomplished this sprint. 
+<2-3 paragraph narrative summary of what was accomplished this sprint.
 Write this in plain language suitable for a project stakeholder.
 Focus on capabilities delivered, not implementation details.>
 
@@ -97,8 +98,8 @@ Focus on capabilities delivered, not implementation details.>
 
 ### Technical Notes
 
-<Any architectural decisions made during the sprint, 
-tech debt introduced, patterns established, or concerns 
+<Any architectural decisions made during the sprint,
+tech debt introduced, patterns established, or concerns
 for the reviewer to be aware of.>
 
 ### Test Coverage
@@ -119,7 +120,7 @@ The release PR targets `development`, NOT `main`. The development → main promo
 
 ```bash
 # Ensure release branch is up to date
-git checkout release/<milestone-slug> && git pull
+git checkout release/<epic-slug> && git pull
 
 # Check for conflicts with development
 git fetch origin development
@@ -129,8 +130,8 @@ git merge-tree $(git merge-base HEAD origin/development) HEAD origin/development
 gh pr create \
   --repo <owner/repo> \
   --base development \
-  --head release/<milestone-slug> \
-  --title "Release: Sprint <N> — <Phase Name>" \
+  --head release/<epic-slug> \
+  --title "Release: Sprint <N> — <Epic Name>" \
   --body "<release PR body from Step 3>" \
   --reviewer <owner> \
   --label "type:release"
@@ -141,15 +142,15 @@ If there are merge conflicts with development:
 - Offer to resolve them or flag for manual resolution
 - Do NOT open the PR until conflicts are resolved
 
-### Step 5: Close the Milestone (if phase is complete)
+### Step 5: Close the Epic (if all stories are complete)
 
-If all stories in the milestone are complete (no open issues remaining):
+If all stories in the epic (milestone) are complete (no open issues remaining):
 
 ```bash
 gh api repos/<owner/repo>/milestones/<milestone-number> -f state="closed"
 ```
 
-If stories remain, keep the milestone open for the next sprint.
+If stories remain, keep the epic open for the next sprint.
 
 ### Step 6: Generate Release Report
 
@@ -165,16 +166,16 @@ If stories remain, keep the milestone open for the next sprint.
 - **Claude efficiency:** <claude_done>/<claude_planned> stories completed
 - **Rolled over:** <count> stories → Sprint <N+1>
 
-### Phase Progress
-- **<Phase Name>:** <closed_issues>/<total_issues> stories complete (<percentage>%)
-- **Milestone status:** <open/closed>
+### Epic Progress
+- **<Epic Name>:** <closed_issues>/<total_issues> stories complete (<percentage>%)
+- **Epic status:** <open/closed>
 
 ### Next Steps
 1. **Review the release PR:** <link to PR>
 2. **Merge to development** when satisfied
 3. Run `/sprint-plan` to plan Sprint <N+1>
-<If milestone/phase complete:>
-4. Phase <N> is complete! Consider promoting development → main for a production release.
+<If epic complete:>
+4. Epic "<Epic Name>" is complete! Consider promoting development → main for a production release.
 ```
 
 ## Error Handling

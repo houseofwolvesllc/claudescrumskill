@@ -10,7 +10,8 @@ Generate a comprehensive status report for the active sprint.
 ## Before You Start
 
 1. Read `../project-scaffold/references/CONVENTIONS.md` for project management standards.
-2. Confirm the `gh` CLI is authenticated.
+2. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in GitHub API commands and code — never in communication with the user.
+3. Confirm the `gh` CLI is authenticated.
 
 ## Input
 
@@ -34,7 +35,7 @@ gh issue list --repo <owner/repo> --state open --json number,title,labels,state,
 gh issue list --repo <owner/repo> --state closed --json number,title,labels,closedAt
 
 # PRs targeting the release branch
-gh pr list --repo <owner/repo> --base release/<milestone-slug> --json number,title,state,mergedAt,labels
+gh pr list --repo <owner/repo> --base release/<epic-slug> --json number,title,state,mergedAt,labels
 ```
 
 ### Step 2: Categorize Stories
@@ -66,7 +67,7 @@ Group all sprint stories into:
 | 12 | User auth endpoint | claude | 5 | 2h ago |
 ...
 
-### In Progress  
+### In Progress
 | # | Title | Executor | Points | Status |
 |---|-------|----------|--------|--------|
 | 14 | API key provisioning | human | 2 | PR open |
@@ -90,7 +91,7 @@ Group all sprint stories into:
 - **Cowork:** <done>/<total> stories (<points> pts done)
 
 ### Release Branch Health
-- **Branch:** release/<slug>
+- **Branch:** release/<epic-slug>
 - **PRs merged:** <N>
 - **CI status:** <passing/failing>
 - **Merge conflicts:** <none/details>

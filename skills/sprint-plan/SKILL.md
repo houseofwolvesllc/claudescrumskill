@@ -10,7 +10,8 @@ Plan and populate the next sprint iteration for an existing GitHub Project.
 ## Before You Start
 
 1. Read `../project-scaffold/references/CONVENTIONS.md` for all project management standards. Follow these conventions exactly.
-2. Confirm the `gh` CLI is authenticated by running `gh auth status`.
+2. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in GitHub API commands and code — never in communication with the user.
+3. Confirm the `gh` CLI is authenticated by running `gh auth status`.
 
 ## Input
 
@@ -22,7 +23,7 @@ If not provided, detect from the current git remote or ask the user.
 ### Step 1: Assess Current State
 
 ```bash
-# Get open milestones
+# Get open epics (milestones)
 gh api repos/<owner/repo>/milestones --jq '.[] | select(.state=="open") | {number, title, open_issues, closed_issues}'
 
 # Get the project's current sprint iteration
@@ -34,7 +35,7 @@ gh issue list --repo <owner/repo> --state open --label "type:story" --json numbe
 
 Gather:
 - How many stories are in the current sprint and their status
-- What's in the backlog, grouped by milestone/phase
+- What's in the backlog, grouped by epic
 - Any `rolled-over` items from the previous sprint (these get priority)
 
 ### Step 2: Calculate Capacity
@@ -52,8 +53,8 @@ Fill the sprint in this priority order:
 
 1. **Rolled-over stories** from previous sprint (label: `rolled-over`)
 2. **Blocked items that are now unblocked** (remove `blocked` label, add `ready-for-work`)
-3. **P0-critical** stories from the current phase milestone
-4. **P1-high** stories from the current phase milestone
+3. **P0-critical** stories from the current epic
+4. **P1-high** stories from the current epic
 5. **P2-medium** stories if capacity remains
 6. **Dependencies-first** — if story B depends on story A, include A before B
 
@@ -66,11 +67,11 @@ Stop when total story points reach the velocity target. Present the proposed spr
 **Capacity:** <velocity> points
 **Planned:** <total points> points
 
-| # | Title | Points | Executor | Priority | Phase |
-|---|-------|--------|----------|----------|-------|
-| 12 | User auth endpoint | 5 | claude | P1-high | Phase 1 |
-| 13 | Login UI component | 3 | claude | P1-high | Phase 1 |
-| 14 | API key provisioning | 2 | human | P1-high | Phase 1 |
+| # | Title | Points | Executor | Priority | Epic |
+|---|-------|--------|----------|----------|------|
+| 12 | User auth endpoint | 5 | claude | P1-high | Core API |
+| 13 | Login UI component | 3 | claude | P1-high | Core API |
+| 14 | API key provisioning | 2 | human | P1-high | Core API |
 ...
 
 **Rolled over:** <count> stories (<points> points)
@@ -88,7 +89,7 @@ After confirmation, update issues:
 # Add sprint iteration assignment via GraphQL
 # Update status to "Ready" for all sprint stories
 # Ensure "ready-for-work" label is on unblocked items
-# Ensure release branch exists for the target milestone
+# Ensure release branch exists for the target epic
 ```
 
 For each story in the sprint:
@@ -99,13 +100,13 @@ For each story in the sprint:
 ### Step 5: Ensure Branch Exists
 
 ```bash
-# Check if release branch exists for the active milestone
-git ls-remote --heads origin release/<milestone-slug>
+# Check if release branch exists for the active epic
+git ls-remote --heads origin release/<epic-slug>
 
 # If not, create it from development
 git checkout development && git pull
-git checkout -b release/<milestone-slug>
-git push -u origin release/<milestone-slug>
+git checkout -b release/<epic-slug>
+git push -u origin release/<epic-slug>
 ```
 
 ### Step 6: Generate Sprint Kickoff Summary
@@ -115,7 +116,7 @@ git push -u origin release/<milestone-slug>
 
 **Sprint:** <N> | **Dates:** <start> — <end>
 **Target:** <points> points across <count> stories
-**Release Branch:** release/<milestone-slug>
+**Release Branch:** release/<epic-slug>
 
 ### By Executor
 - Claude: <N> stories (<points> pts) — ready for autonomous execution
