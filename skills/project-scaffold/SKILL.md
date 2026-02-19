@@ -111,15 +111,19 @@ gh label create "P2-medium" --color "fbca04" --repo <owner/repo>
 gh label create "P3-low" --color "0e8a16" --repo <owner/repo>
 ```
 
-### Step 3: Create Epics (Milestones)
+### Step 3: Create Epics (Milestones + Labels)
 
 For each **new** epic identified in the PRD (skip any mapped to existing milestones):
 
 ```bash
+# Create the milestone for progress tracking
 gh api repos/<owner/repo>/milestones -f title="<Epic Name>" -f description="<Epic summary from PRD>" -f state="open"
+
+# Create the epic label for visibility (slug = lowercase, hyphenated)
+gh label create "epic:<epic-slug>" --color "7057ff" --description "<Epic Name>" --repo <owner/repo>
 ```
 
-Capture the milestone number returned for each, as it's needed when creating issues. For existing epics, use their existing milestone number.
+Capture the milestone number returned for each, as it's needed when creating issues. For existing epics, use their existing milestone number. If an existing epic has no corresponding `epic:*` label, create one.
 
 ### Step 4: Create the GitHub Project
 
@@ -148,14 +152,14 @@ gh issue create \
   --repo <owner/repo> \
   --title "<Story title>" \
   --body "<Issue body from template>" \
-  --label "type:story,executor:<type>,<priority>,ready-for-work" \
+  --label "type:story,executor:<type>,<priority>,ready-for-work,epic:<epic-slug>" \
   --milestone "<Epic Name>"
 ```
 
 For each issue:
 - Assign executor label based on the executor assignment guidelines in CONVENTIONS.md
 - Assign priority based on PRD emphasis and dependencies
-- Assign to the correct epic (milestone) — either new or existing
+- Assign to the correct epic — both the `epic:<slug>` label and the milestone
 - Estimate story points based on the guidelines in CONVENTIONS.md
 - Note dependencies in the issue body (can reference both new and pre-existing issue numbers)
 

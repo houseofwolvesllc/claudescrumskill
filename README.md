@@ -13,7 +13,7 @@ PRD → /project-scaffold → GitHub Project with sprints, stories, branches
                               ↓
                       /sprint-release → wrap up sprint, open release PR
                               ↓
-                     You review one PR → merge to main
+                     You review one PR → merge to development
                               ↓
                         /sprint-plan → next cycle
 ```
@@ -26,13 +26,7 @@ PRD → /project-scaffold → GitHub Project with sprints, stories, branches
 npm install -g @houseofwolvesllc/claude-scrum-skill
 ```
 
-This copies all skills into `~/.claude/skills/`. All six skills are installed as siblings so relative paths to shared conventions resolve correctly.
-
-### Claude Code Plugin Marketplace
-
-```
-/plugin marketplace add houseofwolvesllc/claudescrumskill
-```
+This copies all skills into `~/.claude/skills/`. All five skills are installed as siblings so relative paths to shared conventions resolve correctly.
 
 ### Manual
 
@@ -89,8 +83,8 @@ gh auth status
 
 Create a markdown file with your project requirements. The more structured, the better the scaffold. At minimum, include:
 - Project name and description
-- Phases or milestones with clear boundaries
-- User stories or features per phase
+- Epics or major bodies of work with clear boundaries
+- User stories or features per epic
 - Acceptance criteria for each story
 
 ### 3. Scaffold the Project
@@ -102,12 +96,14 @@ Open Claude Code in your repo and run:
 ```
 
 This creates:
-- A GitHub Project board with custom fields (Status, Sprint, Priority, Executor, Story Points, Phase)
-- Board views: Current Sprint, Claude Queue, My Tasks, Backlog, Phase Overview
-- Issues for every story, labeled with type, priority, phase, and executor
-- Milestones for each phase
-- A release branch for the first phase
+- A GitHub Project board with custom fields (Status, Sprint, Priority, Executor, Story Points)
+- Board views: Current Sprint, Claude Queue, My Tasks, Backlog, Epic Overview
+- Issues for every story, labeled with type, priority, executor, and `epic:<slug>`
+- Epics tracked two ways: `epic:*` labels for visibility + milestones for progress tracking
+- Release branches for each epic
 - Branch protection on main
+
+Already have an existing project? The skill detects it and offers to add stories to existing epics or create new ones — no need to scaffold from scratch every time.
 
 ### 4. Plan a Sprint
 
@@ -119,15 +115,7 @@ The skill pulls stories from the backlog, assigns them to the next sprint iterat
 
 ### 5. Assign an Executor
 
-Label stories to tell Claude what's its responsibility:
-
-```bash
-# Assign all Phase 1 stories to Claude
-gh issue list --label "phase:1" --json number -q '.[].number' | \
-  xargs -I {} gh issue edit {} --add-label "executor:claude"
-```
-
-Three executor labels:
+Three executor labels control who works each story:
 
 | Label | Who | When |
 |---|---|---|
@@ -157,7 +145,7 @@ Get a progress report: stories completed vs. remaining, burndown, blockers, and 
 /sprint-release owner/repo
 ```
 
-This closes the sprint, opens a release PR from the release branch into main, and summarizes everything that shipped. You review one PR, merge it, and you're done.
+This closes the sprint, opens a release PR from the release branch into `development`, and summarizes everything that shipped. You review one PR, merge it, and the sprint is done. When you're ready for production, promote `development` into `main`.
 
 ### 9. Emulate the Project
 
@@ -165,7 +153,14 @@ This closes the sprint, opens a release PR from the release branch into main, an
 /project-emulate
 ```
 
-Claude reads the entire codebase, discovers every role, every action, and every permission boundary, then walks through the full lifecycle — from infrastructure deployment through normal operations to teardown. Outputs a coverage report with a permission matrix and categorized issues.
+Claude reads the entire codebase and runs a multi-phase validation:
+
+1. **Discovery** — finds every role, action, and permission boundary
+2. **Integration seam validation** — checks that Docker, build tools, transpilers, IoC containers, config files, and service contracts are mutually consistent
+3. **Layer contract validation** — traces data through response helpers, middleware chains, IoC resolution, config stores, and error handlers to verify every layer agrees on data shapes
+4. **Cross-service payload validation** — verifies that request/response bodies, query parameters, headers, shared types, pagination contracts, and error shapes match across service boundaries
+5. **Full lifecycle walkthrough** — emulates each role executing each action from deployment through teardown
+6. **Coverage report** — permission matrix, categorized issues, and missing coverage
 
 ### 10. Repeat
 
@@ -182,7 +177,7 @@ Start the next sprint. The cycle continues until the project is complete.
 ```
 main (human-only — requires your review)
  └── development (sprint approval gate)
-      └── release/phase-1-core-api
+      └── release/core-api
            ├── story/1-init-project → auto-merge ✓
            ├── story/2-database-schema → auto-merge ✓
            └── story/3-auth-endpoints → auto-merge ✓
@@ -197,19 +192,20 @@ The scaffold creates a GitHub Project (the newer Projects experience, not classi
 | Field | Type | Purpose |
 |---|---|---|
 | Status | Single select | Workflow state: Backlog → Ready → In Progress → In Review → Done |
-| Sprint | Iteration (2-week) | Time-boxed sprint assignment. Filter views by Milestone to scope to a sprint |
+| Sprint | Iteration (2-week) | Time-boxed sprint assignment |
 | Priority | Single select | P0-Critical through P3-Low |
 | Executor | Single select | Who works this: `claude`, `human`, or `cowork` |
 | Story Points | Number | Fibonacci estimation (1, 2, 3, 5, 8, 13) |
-| Phase | Single select | Maps back to PRD phases/milestones |
+
+Epics are tracked two ways: `epic:*` labels give scrum teams the vocabulary they expect right on every issue, while native GitHub Milestones power the progress tracking (open/closed counts, % complete) behind the scenes. Both are set at issue creation time. You can filter by either on any project view.
 
 **Board views** use GitHub's view system:
 
-- **Current Sprint** — Board layout, filtered by Milestone to the active sprint, columns by Status
+- **Current Sprint** — Board layout, filtered to the active sprint, columns by Status
 - **Claude Queue** — Table layout, filtered to `Executor = claude` and `Status = Ready`, sorted by Priority
-- **By Sprint** — Board layout, grouped by Sprint (creates swimlanes per sprint)
-- **Phase Overview** — Table layout, grouped by Phase, with field sums on Story Points
+- **My Tasks** — Table layout, filtered to `Executor = human`, grouped by Sprint
 - **Backlog** — Table layout, filtered to `Status = Backlog`, sorted by Priority
+- **Epic Overview** — Table layout, grouped by Milestone, with field sums on Story Points
 
 You can also use **Slice by** on any field to quickly filter the current view from a side panel — useful for slicing a sprint view by Executor or Priority.
 
@@ -223,11 +219,11 @@ Located at: `project-scaffold/references/CONVENTIONS.md`
 
 | Skill | Command | What It Does |
 |---|---|---|
-| `project-scaffold` | `/project-scaffold <prd-path>` | Full project setup from PRD |
+| `project-scaffold` | `/project-scaffold <prd-path>` | Full project setup from PRD, or add stories to an existing project |
 | `sprint-plan` | `/sprint-plan [owner/repo]` | Plan and populate the next sprint |
 | `sprint-status` | `/sprint-status [owner/repo]` | Progress report and burndown |
-| `sprint-release` | `/sprint-release [owner/repo]` | Close sprint, open release PR |
-| `project-emulate` | `/project-emulate` | Full walkthrough coverage of all roles, actions, and lifecycle stages |
+| `sprint-release` | `/sprint-release [owner/repo]` | Close sprint, open release PR to development |
+| `project-emulate` | `/project-emulate` | Integration seams, layer contracts, cross-service payloads, and full lifecycle walkthrough |
 
 ## Customization
 
@@ -243,16 +239,15 @@ All label hex colors are defined in the `project-scaffold` skill. Modify to matc
 ### Executor Criteria
 Edit `CONVENTIONS.md` → "Executor Assignment Guidelines" to tune what gets assigned to Claude vs. you vs. Cowork.
 
-### Adding Phases
-Phases map to your PRD structure. If you add new phases later, create a new milestone and add the corresponding value to the Phase custom field.
+### Adding Epics
+Epics map to your PRD structure. To add new epics later, run `/project-scaffold` with the new PRD — it detects the existing project and lets you add stories to existing epics or create new ones.
 
 ## Tips
 
-- **Chunk large phases** into multiple sprints for natural review gates. If Phase 1 has 30 stories, split it into 2-3 sprints rather than one massive batch.
-- **Filter views by Milestone** to scope board views to the active sprint. Update the filter when you move to the next sprint.
+- **Chunk large epics** into multiple sprints for natural review gates. If an epic has 30 stories, split it into 2-3 sprints rather than one massive batch.
 - **Start small.** Scaffold a real but small project first to calibrate your conventions before relying on it for bigger work.
 - **Branch protection is your safety net.** The PAT should not have write access to main. Merges to main always go through your review.
-- **Run `/project-emulate` before releases** to catch permission gaps, missing flows, and dead code before shipping.
+- **Run `/project-emulate` before releases** to catch integration seam failures, layer contract mismatches, cross-service payload drift, permission gaps, and dead code before shipping.
 
 ## License
 

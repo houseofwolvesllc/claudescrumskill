@@ -17,7 +17,7 @@ Every GitHub Project board MUST include these custom fields:
 | Executor | Single select | `claude`, `human`, `cowork` | Who works this story |
 | Story Points | Number | 1, 2, 3, 5, 8, 13 | Fibonacci estimation |
 
-**Note:** Epics are tracked via native GitHub Milestones — no custom field needed.
+**Note:** Epics are tracked via `epic:*` labels (visibility) and native GitHub Milestones (progress tracking) — no custom field needed.
 
 ### Project Board Views
 
@@ -30,6 +30,13 @@ Create these views on every project board:
 5. **Epic Overview** — Group by: Milestone, Sort by: Priority
 
 ## Label Taxonomy
+
+### Epic Labels (created per-epic)
+
+- `epic:<slug>` — One label per epic, applied to every issue in that epic (e.g., `epic:core-api`, `epic:security-hardening`)
+- Color: `#7057ff` (purple) for all epic labels
+- Epic labels provide at-a-glance identification and easy filtering on issues and project views
+- Milestones provide the progress tracking (open/closed counts, % complete) behind the scenes
 
 ### Executor Labels (REQUIRED on every story)
 
@@ -149,14 +156,20 @@ For executor:human — explain why this needs human judgment and what decisions 
 
 ## Epic Structure
 
-Epics are backed by native GitHub Milestones. Each major body of work (PRD phase, feature area, or initiative) becomes a milestone.
+Each epic is tracked two ways:
+
+1. **`epic:<slug>` label** — visible on every issue for at-a-glance identification and filtering
+2. **GitHub Milestone** — powers progress tracking (open/closed counts, % complete bar)
+
+Both are set at issue creation time. The label is what scrum teams see day-to-day; the milestone is what drives metrics.
 
 - Epic (milestone) title format: `<Epic Name>` (e.g., `Core API`, `Security Hardening`, `Encrypted Journal`)
+- Epic label format: `epic:<slug>` (e.g., `epic:core-api`, `epic:security-hardening`, `epic:encrypted-journal`)
 - Epic description: Summary of the body of work from the PRD or spec
 - Epic due date: Derived from sprint cadence and story point estimates
-- Stories are assigned to epics (milestones) based on their scope
+- Stories are assigned to both the epic label and the milestone
 
-**Backward compatibility:** Existing milestones named `Phase N: <Name>` are treated as epics without renaming. The skills work with whatever milestone naming convention is already in place.
+**Backward compatibility:** Existing milestones named `Phase N: <Name>` are treated as epics without renaming. If an existing project has no `epic:*` labels, the skills create them when adding new stories.
 
 ## Sprint Cadence
 
