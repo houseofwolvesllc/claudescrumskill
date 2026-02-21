@@ -4,8 +4,26 @@ const fs = require('fs');
 const path = require('path');
 
 const HOME = process.env.HOME || process.env.USERPROFILE;
-const SKILLS_DIR = path.join(HOME, '.claude', 'skills');
 const SOURCE_DIR = path.join(__dirname, '..', 'skills');
+const IS_GLOBAL = process.env.npm_config_global === 'true';
+
+// Global install → ~/.claude/skills/
+// Local install  → <project>/.claude/skills/
+let skillsDir;
+if (IS_GLOBAL) {
+  skillsDir = path.join(HOME, '.claude', 'skills');
+} else {
+  // Walk up from node_modules to find the project root
+  let projectRoot = path.resolve(__dirname, '..');
+  while (projectRoot !== path.dirname(projectRoot)) {
+    if (path.basename(projectRoot) === 'node_modules') {
+      projectRoot = path.dirname(projectRoot);
+      break;
+    }
+    projectRoot = path.dirname(projectRoot);
+  }
+  skillsDir = path.join(projectRoot, '.claude', 'skills');
+}
 
 const skills = [
   'project-scaffold',
@@ -28,15 +46,15 @@ function copyRecursive(src, dest) {
   }
 }
 
-console.log('\n📋 Installing claude-scrum-skill...\n');
+const location = IS_GLOBAL ? 'global (~/.claude/skills/)' : `project (${skillsDir})`;
+console.log(`\n📋 Installing claude-scrum-skill (${location})...\n`);
 
-// Ensure ~/.claude/skills exists
-fs.mkdirSync(SKILLS_DIR, { recursive: true });
+fs.mkdirSync(skillsDir, { recursive: true });
 
 let installed = 0;
 for (const skill of skills) {
   const src = path.join(SOURCE_DIR, skill);
-  const dest = path.join(SKILLS_DIR, skill);
+  const dest = path.join(skillsDir, skill);
 
   if (fs.existsSync(src)) {
     copyRecursive(src, dest);
@@ -47,6 +65,6 @@ for (const skill of skills) {
   }
 }
 
-console.log(`\n✨ Installed ${installed} skills to ${SKILLS_DIR}`);
-console.log('   Skills are available in Claude Code immediately.\n');
+console.log(`\n✨ Installed ${installed} skills to ${skillsDir}`);
+console.log('   Restart Claude Code for the skills to become available.\n');
 console.log('   Run /project-scaffold <prd-path> to get started.\n');

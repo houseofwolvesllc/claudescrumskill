@@ -38,10 +38,14 @@ This installs all five skills as a native Claude Code plugin with automatic upda
 ### npm
 
 ```bash
+# Global — installs to ~/.claude/skills/ (all projects)
 npm install -g @houseofwolvesllc/claude-scrum-skill
+
+# Local — installs to <project>/.claude/skills/ (this project only)
+npm install @houseofwolvesllc/claude-scrum-skill
 ```
 
-This copies all skills into `~/.claude/skills/`. All five skills are installed as siblings so relative paths to shared conventions resolve correctly.
+Global install copies skills to `~/.claude/skills/` so they're available everywhere. Local install copies them to your project's `.claude/skills/` directory — useful for dev containers and CI where the home directory is ephemeral.
 
 ### Manual
 

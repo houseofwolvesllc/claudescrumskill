@@ -1,6 +1,6 @@
 ---
 name: sprint-release
-description: Wrap up a sprint by generating a release summary, opening the release PR to main for human review, handling incomplete stories, and preparing for the next sprint. Use when a sprint is complete or at the sprint boundary deadline.
+description: Wrap up a sprint by generating a release summary, opening release PRs for human review, handling incomplete stories, cleaning up merged branches, and preparing for the next sprint. Use when a sprint is complete or at the sprint boundary deadline.
 ---
 
 # Sprint Release
@@ -114,19 +114,38 @@ for the reviewer to be aware of.>
 - [ ] Reviewed release summary above
 ```
 
-### Step 4: Open the Release PR
+### Step 4: Detect Branch State
 
-The release PR targets `development`, NOT `main`. The development → main promotion is a separate, human-initiated production release.
+Before creating any PR, determine the current branch state:
 
 ```bash
-# Ensure release branch is up to date
-git checkout release/<epic-slug> && git pull
+git fetch origin
 
-# Check for conflicts with development
-git fetch origin development
-git merge-tree $(git merge-base HEAD origin/development) HEAD origin/development
+# Find all release and story branches
+RELEASE_BRANCHES=$(git branch -r | grep 'origin/release/' | sed 's|origin/||' | xargs)
+STORY_BRANCHES=$(git branch -r | grep 'origin/story/' | sed 's|origin/||' | xargs)
 
-# Open the PR targeting development
+# Check which release branches have unmerged commits relative to development
+UNMERGED=""
+for branch in $RELEASE_BRANCHES; do
+  AHEAD=$(git rev-list --count origin/development..origin/$branch 2>/dev/null || echo "0")
+  if [ "$AHEAD" -gt 0 ]; then
+    UNMERGED="$UNMERGED $branch"
+  fi
+done
+```
+
+Based on the result, follow the matching scenario:
+
+**Scenario A — Unmerged release branches exist:**
+
+Release branches have commits not yet in `development`. This is the "accumulate and release" pattern.
+
+1. Create one PR per unmerged release branch targeting `development`
+2. Do NOT create a `development` → `main` PR (that's a separate human-initiated production release)
+3. Clean up only the story branches that are fully merged into their release branch
+
+```bash
 gh pr create \
   --repo <owner/repo> \
   --base development \
@@ -142,9 +161,68 @@ If there are merge conflicts with development:
 - Offer to resolve them or flag for manual resolution
 - Do NOT open the PR until conflicts are resolved
 
-### Step 5: Close the Epic (if all stories are complete)
+**Scenario B — All release branches already merged to development:**
 
-If all stories in the epic (milestone) are complete (no open issues remaining):
+All epic work was merged into `development` during sprint execution. Nothing to PR into `development`.
+
+1. Check for an existing `development` → `main` PR
+   - If one exists, update its body with the release notes
+   - If none exists, create it
+2. Clean up all merged story and release branches (both local and remote)
+
+```bash
+# Check for existing development → main PR
+gh pr list --repo <owner/repo> --base main --head development --json number,state
+
+# If no PR exists, create the production release PR
+gh pr create \
+  --repo <owner/repo> \
+  --base main \
+  --head development \
+  --title "Release: Sprint <N> — <summary>" \
+  --body "<release PR body from Step 3>" \
+  --reviewer <owner> \
+  --label "type:release"
+
+# If a PR already exists, update its body with the release notes
+gh api repos/<owner/repo>/pulls/<pr-number> -X PATCH -f body="<release PR body>"
+```
+
+**Scenario C — Mixed (some merged, some not):**
+
+Some release branches were merged during sprint execution, others are still pending.
+
+1. Create PRs for unmerged release branches → `development` (Scenario A behavior)
+2. Do NOT create the `development` → `main` PR yet (pending work still needs to land)
+3. Clean up only fully-merged branches
+
+### Step 5: Clean Up Merged Branches
+
+After handling the release PR(s), clean up branches that are fully merged into `development`. The skill that creates branches is NOT necessarily the skill that cleans them up — `project-scaffold` and `sprint-plan` create release/story branches, but `sprint-release` is responsible for cleaning up any that are fully merged by the time it runs.
+
+```bash
+# Identify merged branches (excluding main and development)
+git branch -r --merged origin/development | grep -E 'origin/(story|release)/' | sed 's|origin/||'
+
+# Delete remote branches
+for branch in <merged-branches>; do
+  git push origin --delete "$branch"
+done
+
+# Delete local tracking branches and prune
+git branch -d <local-merged-branches>
+git remote prune origin
+```
+
+**Cleanup rules:**
+- Never delete `main` or `development`
+- Only delete branches fully merged into `development`
+- In Scenario A/C, only delete story branches merged into their release branch — do not delete unmerged release branches
+- Report all deletions in the release summary
+
+### Step 6: Close Epics (if all stories are complete)
+
+If all stories in an epic (milestone) are complete (no open issues remaining):
 
 ```bash
 gh api repos/<owner/repo>/milestones/<milestone-number> -f state="closed"
@@ -152,13 +230,13 @@ gh api repos/<owner/repo>/milestones/<milestone-number> -f state="closed"
 
 If stories remain, keep the epic open for the next sprint.
 
-### Step 6: Generate Release Report
+### Step 7: Generate Release Report
 
 ```
 ## Sprint <N> Release Complete
 
 **Release PR:** #<pr-number> — awaiting your review
-**Branch:** release/<slug> → development
+**Branch:** <branch flow description, e.g. "development → main" or "release/<slug> → development">
 
 ### Sprint Scorecard
 - **Velocity:** <points_completed> points (target was <planned_points>)
@@ -170,12 +248,20 @@ If stories remain, keep the epic open for the next sprint.
 - **<Epic Name>:** <closed_issues>/<total_issues> stories complete (<percentage>%)
 - **Epic status:** <open/closed>
 
+### Cleanup
+- **Branches deleted:** <list of deleted branches, or "none">
+- **Remaining branches:** main, development
+
 ### Next Steps
+<If Scenario A (release → development):>
 1. **Review the release PR:** <link to PR>
 2. **Merge to development** when satisfied
 3. Run `/sprint-plan` to plan Sprint <N+1>
-<If epic complete:>
-4. Epic "<Epic Name>" is complete! Consider promoting development → main for a production release.
+
+<If Scenario B (development → main):>
+1. **Review the production release PR:** <link to PR>
+2. **Merge to main** when satisfied
+3. Run `/sprint-plan` to plan the next phase
 ```
 
 ## Error Handling
