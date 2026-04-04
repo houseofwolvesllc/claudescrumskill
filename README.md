@@ -1,6 +1,6 @@
 # Claude Scrum Skill
 
-An open-source npm package of Claude Code skills that give you a complete scrum pipeline — from PRD to production release — with Claude as your scrum master. Includes project scaffolding, sprint planning, status tracking, sprint releases, full-project emulation testing, and autonomous orchestration. One PR per sprint, or let Claude drive the entire lifecycle hands-free.
+An open-source npm package of Claude Code skills that give you a complete scrum pipeline — from PRD to production release — with Claude as your scrum master. Includes project scaffolding, sprint planning, status tracking, sprint releases, full-project emulation testing, autonomous orchestration, and project cleanup. One PR per sprint, or let Claude drive the entire lifecycle hands-free.
 
 ```
 Manual mode — you invoke each skill:
@@ -51,7 +51,7 @@ Add the marketplace and install the plugin directly from GitHub:
 /plugin install claude-scrum-skill@houseofwolvesllc
 ```
 
-This installs all six skills as a native Claude Code plugin with automatic updates. To update later:
+This installs all seven skills as a native Claude Code plugin with automatic updates. To update later:
 
 ```
 /plugin marketplace update
@@ -220,7 +220,29 @@ Instead of manually invoking each skill at every step, let Claude drive the enti
 
 Human/cowork stories are skipped (they roll over). Merges to `development` happen automatically. Merges to `main` still require your review. State is persisted to `.claude/orchestration-state.md` so progress survives session restarts.
 
-### 11. Repeat (Manual Mode)
+### 11. Clean Up the Codebase
+
+```
+# Report issues without fixing
+/project-cleanup
+
+# Scope to a specific directory
+/project-cleanup src/
+
+# Auto-fix everything
+/project-cleanup --fix
+
+# Report only, no fixes even if --fix is present
+/project-cleanup --report-only
+```
+
+Verify codebase hygiene across five dimensions: zero build errors/warnings, zero lint errors/warnings, HATEOAS and architecture compliance, no dead or duplicated code, and all tests passing with at least 50% coverage. The skill detects your toolchain (TypeScript, Go, Rust, Python, etc.) automatically.
+
+In `--fix` mode, it resolves issues in dependency order — dead code removal first, then build errors, lint violations, architecture fixes, and finally test fixes and coverage improvement. All changes are documented in a `FIXES.md` report. Without `--fix`, it produces a full report to `.claude/reports/cleanup-report/` without modifying code.
+
+Reads your project's `CLAUDE.md` for overrides — project rules always win over default best practices.
+
+### 12. Repeat (Manual Mode)
 
 ```
 /sprint-plan owner/repo
@@ -283,6 +305,7 @@ Located at: `project-scaffold/references/CONVENTIONS.md`
 | `sprint-release` | `/sprint-release [owner/repo]` | Close sprint, open release PR to development |
 | `project-emulate` | `/project-emulate` | Integration seams, layer contracts, cross-service payloads, and full lifecycle walkthrough |
 | `project-orchestrate` | `/project-orchestrate [prd-path] [owner/repo]` | Autonomous lifecycle driver — sprint loop + emulation hardening until done |
+| `project-cleanup` | `/project-cleanup [path] [--fix] [--report-only]` | Build, lint, HATEOAS, dead code, and test coverage verification/enforcement |
 
 ## Customization
 
@@ -341,6 +364,7 @@ Orchestration state is saved to `.claude/orchestration-state.md` (human-readable
 - **Start small.** Scaffold a real but small project first to calibrate your conventions before relying on it for bigger work.
 - **Branch protection is your safety net.** The PAT should not have write access to main. Merges to main always go through your review.
 - **Run `/project-emulate` before releases** to catch integration seam failures, layer contract mismatches, cross-service payload drift, permission gaps, and dead code before shipping.
+- **Run `/project-cleanup --fix` after major changes** to enforce build/lint cleanliness, remove dead code, and ensure test coverage stays above 50%.
 
 ## License
 

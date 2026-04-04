@@ -63,7 +63,7 @@ Orchestration state is persisted to `.claude/orchestration-state.md` so progress
 ## Meta
 - **Repo:** owner/repo
 - **Project:** #<number>
-- **Phase:** epic-completion | emulation-hardening
+- **Phase:** epic-completion | emulation-hardening | project-cleanup
 - **Status:** running | paused | completed
 - **Scope:** prd | all
 - **PRD Source:** path/to/prd.md (if scope=prd, otherwise "—")
@@ -337,7 +337,7 @@ Read and parse `.claude/reports/emulation-report/ISSUES.md`. Extract findings by
 - **Warning** — should fix (degrades quality or reliability)
 - **Info** — may fix (cleanup, minor improvements)
 
-If no critical or warning findings exist → orchestration is complete, skip to Step 14.
+If no critical or warning findings exist → skip to Step 14 (Project Cleanup).
 
 Count and categorize:
 
@@ -408,7 +408,7 @@ After the hardening epic is complete, run emulation again:
 Parse the new findings:
 
 - **If new critical or warning findings exist** → increment the run counter and loop back to Step 10
-- **If clean (no critical or warning findings)** → proceed to Step 14
+- **If clean (no critical or warning findings)** → proceed to Step 14 (Project Cleanup)
 
 Safety valve: If this is the 3rd consecutive hardening run, pause and escalate to the user:
 
@@ -424,7 +424,47 @@ Options:
 3. Review findings manually
 ```
 
-### Step 14: Completion Summary
+---
+
+## Phase 3 — Project Cleanup
+
+After emulation hardening is clean (or accepted), run a final mechanical hygiene pass to ensure the codebase builds, lints, and tests cleanly.
+
+### Step 14: Run Project Cleanup
+
+Invoke the cleanup skill in fix mode:
+
+```
+/project-cleanup --fix
+```
+
+This runs across the **entire codebase** and automatically fixes:
+- Build errors and warnings (type errors, unused variables, deprecations)
+- Lint violations (ESLint/Biome/etc. with `--max-warnings 0`)
+- HATEOAS compliance gaps (missing `_links`, pagination links, consistency)
+- Dead and duplicated code (unused exports, files, dependencies, commented-out code)
+- Failing tests and coverage gaps (targets 50% minimum across all metrics)
+
+After cleanup completes, read the report at `.claude/reports/cleanup-report/SUMMARY.md`:
+
+- **If all phases PASS** → proceed to Step 15 (Completion Summary)
+- **If any phase FAIL** → review the report, attempt a second cleanup pass. If issues persist after two passes, log remaining issues and proceed to Step 15 with a note
+
+Print a phase transition summary:
+
+```
+## Phase 3 Complete — Project Cleanup
+
+**Build:** ✅ zero errors, zero warnings
+**Lint:** ✅ zero violations
+**HATEOAS:** ✅ compliant (or SKIP if not an API project)
+**Dead code:** ✅ none detected
+**Tests:** ✅ all passing, <pct>% coverage
+
+Proceeding to completion summary.
+```
+
+### Step 15: Completion Summary
 
 Print a comprehensive summary of the entire orchestration run:
 
@@ -443,10 +483,19 @@ Print a comprehensive summary of the entire orchestration run:
 - **Issues fixed:** <N> critical, <N> warning
 - **Final emulation status:** ✅ Clean / ⚠️ Accepted with <N> remaining
 
+### Phase 3 — Project Cleanup
+- **Build:** ✅ clean / ⚠️ <N> remaining issues
+- **Lint:** ✅ clean / ⚠️ <N> remaining issues
+- **HATEOAS:** ✅ compliant / ⚠️ <N> violations / ⏭️ skipped
+- **Dead code:** ✅ none / ⚠️ <N> items remaining
+- **Tests:** ✅ passing (<pct>% coverage) / ⚠️ <N> failing, <pct>% coverage
+- **Full report:** .claude/reports/cleanup-report/SUMMARY.md
+
 ### Timeline
 - Started: <timestamp>
 - Phase 1 completed: <timestamp>
 - Phase 2 completed: <timestamp>
+- Phase 3 completed: <timestamp>
 
 ### Remaining Work
 - <N> human/cowork stories still open across <N> epics
@@ -472,7 +521,9 @@ Keep the user informed without being noisy:
 | Epic completed | Epic summary — 3-4 lines |
 | Phase transition | Full phase summary |
 | Hardening run start | Run number and finding counts |
-| Orchestration complete | Full completion summary (Step 14) |
+| Cleanup started | Single line: "Running project cleanup..." |
+| Cleanup complete | Phase 3 summary — 5-6 lines with pass/fail per dimension |
+| Orchestration complete | Full completion summary (Step 15) |
 | Error/pause | Immediate alert with context and options |
 
 ---
