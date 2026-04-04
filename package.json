@@ -1,6 +1,6 @@
 {
   "name": "@houseofwolvesllc/claude-scrum-skill",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Claude Code skills for scrum project management — PRD to production release pipeline with project scaffolding, sprint planning, status tracking, sprint releases, full-project emulation testing, autonomous orchestration, and project cleanup.",
   "bin": {},
   "scripts": {
