@@ -457,7 +457,7 @@ Print a phase transition summary:
 
 **Build:** ✅ zero errors, zero warnings
 **Lint:** ✅ zero violations
-**HATEOAS:** ✅ compliant (or SKIP if not an API project)
+**Project Principles:** ✅ compliant (or SKIP if no principles in CLAUDE.md)
 **Dead code:** ✅ none detected
 **Tests:** ✅ all passing, <pct>% coverage
 
@@ -486,7 +486,7 @@ Print a comprehensive summary of the entire orchestration run:
 ### Phase 3 — Project Cleanup
 - **Build:** ✅ clean / ⚠️ <N> remaining issues
 - **Lint:** ✅ clean / ⚠️ <N> remaining issues
-- **HATEOAS:** ✅ compliant / ⚠️ <N> violations / ⏭️ skipped
+- **Project Principles:** ✅ compliant / ⚠️ <N> violations / ⏭️ skipped (no principles in CLAUDE.md)
 - **Dead code:** ✅ none / ⚠️ <N> items remaining
 - **Tests:** ✅ passing (<pct>% coverage) / ⚠️ <N> failing, <pct>% coverage
 - **Full report:** .claude/reports/cleanup-report/SUMMARY.md

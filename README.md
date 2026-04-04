@@ -236,7 +236,7 @@ Human/cowork stories are skipped (they roll over). Merges to `development` happe
 /project-cleanup --report-only
 ```
 
-Verify codebase hygiene across five dimensions: zero build errors/warnings, zero lint errors/warnings, HATEOAS and architecture compliance, no dead or duplicated code, and all tests passing with at least 50% coverage. The skill detects your toolchain (TypeScript, Go, Rust, Python, etc.) automatically.
+Verify codebase hygiene across five dimensions: zero build errors/warnings, zero lint errors/warnings, project principles compliance (driven by your `CLAUDE.md`), no dead or duplicated code, and all tests passing with at least 50% coverage. The skill detects your toolchain (TypeScript, Go, Rust, Python, etc.) automatically.
 
 In `--fix` mode, it resolves issues in dependency order — dead code removal first, then build errors, lint violations, architecture fixes, and finally test fixes and coverage improvement. All changes are documented in a `FIXES.md` report. Without `--fix`, it produces a full report to `.claude/reports/cleanup-report/` without modifying code.
 
@@ -305,7 +305,7 @@ Located at: `project-scaffold/references/CONVENTIONS.md`
 | `sprint-release` | `/sprint-release [owner/repo]` | Close sprint, open release PR to development |
 | `project-emulate` | `/project-emulate` | Integration seams, layer contracts, cross-service payloads, and full lifecycle walkthrough |
 | `project-orchestrate` | `/project-orchestrate [prd-path] [owner/repo]` | Autonomous lifecycle driver — sprint loop + emulation hardening until done |
-| `project-cleanup` | `/project-cleanup [path] [--fix] [--report-only]` | Build, lint, HATEOAS, dead code, and test coverage verification/enforcement |
+| `project-cleanup` | `/project-cleanup [path] [--fix] [--report-only]` | Build, lint, project principles, dead code, and test coverage verification/enforcement |
 
 ## Customization
 

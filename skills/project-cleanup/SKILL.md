@@ -116,75 +116,48 @@ For each issue found, record:
 
 ---
 
-## Phase 3: HATEOAS and Project Principles Compliance
+## Phase 3: Project Principles Compliance
 
-Verify the codebase adheres to HATEOAS (Hypermedia as the Engine of Application State) principles and any project-specific architectural standards.
+Verify the codebase adheres to the architectural and design principles defined in the project's `CLAUDE.md`. This phase is entirely driven by what the project specifies — there are no default architectural checks.
 
-**Important:** Only apply HATEOAS checks to projects that expose REST APIs. Skip this phase entirely for CLI tools, libraries, static sites, or other non-API projects.
+**If `CLAUDE.md` does not exist or contains no architectural principles, skip this phase entirely.**
 
-### Step 1: Identify API Layer
+### Step 1: Extract Principles from CLAUDE.md
 
-Scan for API route definitions, controllers, and response construction:
+Read the project's `CLAUDE.md` and identify every architectural or design principle it specifies. These may include (but are not limited to):
 
-- Express/Fastify/Koa route handlers
-- NestJS/Spring/Django/Rails controllers
-- Serverless function handlers (Lambda, Cloud Functions)
-- GraphQL resolvers (HATEOAS doesn't apply to GraphQL — skip these)
+- **API design patterns** — HATEOAS, REST conventions, GraphQL schema standards, response envelope formats
+- **Layered architecture rules** — e.g., "controllers must not call repositories directly"
+- **Dependency direction** — e.g., "inner layers must not depend on outer layers"
+- **Naming conventions** — file names, function names, variable naming patterns
+- **Error handling patterns** — e.g., "all errors must extend AppError"
+- **Response formats** — e.g., "all responses must include `_links`" or "use HAL format"
+- **Testing requirements** — e.g., "every service must have integration tests"
+- **Any other explicit rule** — whatever the project declares, enforce it
 
-### Step 2: HATEOAS Link Audit
+Record each principle found so violations can reference the specific rule.
 
-For each API endpoint that returns resource representations, verify:
+### Step 2: Audit Compliance
 
-**Self links** — Every resource response MUST include a `self` link:
-```json
-{
-  "id": "123",
-  "name": "Example",
-  "_links": {
-    "self": { "href": "/resources/123" }
-  }
-}
-```
+For each principle extracted in Step 1, scan the codebase for violations:
 
-**Relational links** — Resources with relationships SHOULD include navigational links:
-- Parent resource link (e.g., `collection` → `/resources`)
-- Related resource links (e.g., `author` → `/users/456`)
-- Action links where applicable (e.g., `approve` → `/resources/123/approve`)
+1. Identify all files and code paths where the principle applies
+2. Check each instance for compliance
+3. Flag every violation with the specific principle it breaks
 
-**Collection links** — Collection endpoints SHOULD include:
-- `self` link with current query parameters
-- Pagination links (`next`, `prev`, `first`, `last`) when paginated
-- Item links or embedded items with their own `self` links
-
-**Consistency checks:**
-- All link `href` values MUST correspond to actual routes that exist in the codebase
-- Link relations MUST be consistent across all endpoints (don't use `_links` in some responses and `links` in others)
-- Media type SHOULD be consistent (if using HAL, use HAL everywhere; if using JSON:API, use JSON:API everywhere)
-
-### Step 3: Project-Specific Principles
-
-Read `CLAUDE.md` and any architecture documentation (ADRs, `docs/architecture.md`, etc.) for project-specific principles. Common things to check:
-
-- **Layered architecture compliance** — are controllers calling repositories directly instead of going through services?
-- **Dependency direction** — do inner layers depend on outer layers?
-- **Naming conventions** — do file names, function names, and variable names follow the project's conventions?
-- **Error handling patterns** — does the project use a specific error handling strategy consistently?
-- **Response envelope** — does the project wrap responses in a specific envelope format?
-
-### Step 4: Catalog HATEOAS/Architecture Issues
+### Step 3: Catalog Violations
 
 For each violation found, record:
 
-| File | Line | Category | Issue | Recommendation |
-|------|------|----------|-------|----------------|
-| `src/controllers/users.ts` | 78 | HATEOAS | Response missing `_links.self` | Add self link to user response |
-| `src/routes/orders.ts` | 45 | Architecture | Controller directly queries DB | Route through OrderService |
+| File | Line | Principle | Issue | Recommendation |
+|------|------|-----------|-------|----------------|
+| `src/routes/orders.ts` | 45 | Layered architecture | Controller directly queries DB | Route through OrderService |
+| `src/controllers/users.ts` | 78 | HATEOAS (per CLAUDE.md) | Response missing `_links.self` | Add self link to user response |
 
 If `--fix` is active:
-- Add missing `_links` to response objects
-- Add missing pagination links to collection responses
-- Refactor architectural violations (move logic to correct layer)
+- Fix violations in order of severity (principles the project marks as critical first)
 - Verify fixes don't break existing tests
+- Re-scan to confirm compliance
 
 ---
 
@@ -364,7 +337,7 @@ cleanup-report/
 ├── SUMMARY.md              # High-level findings, pass/fail status for each phase
 ├── BUILD.md                # Build errors and warnings
 ├── LINT.md                 # Lint violations by rule and file
-├── HATEOAS.md              # HATEOAS and architecture compliance findings
+├── PRINCIPLES.md           # Project principles compliance findings (from CLAUDE.md)
 ├── DEAD-CODE.md            # Dead and duplicated code inventory
 ├── TESTS.md                # Test results and coverage analysis
 └── FIXES.md                # (if --fix was used) Summary of all changes made
@@ -386,7 +359,7 @@ cleanup-report/
 |-------|--------|--------------|--------------|
 | Build | PASS/FAIL | <count> errors, <count> warnings | <count> (if --fix) |
 | Lint | PASS/FAIL | <count> errors, <count> warnings | <count> (if --fix) |
-| HATEOAS/Architecture | PASS/FAIL/SKIP | <count> violations | <count> (if --fix) |
+| Project Principles | PASS/FAIL/SKIP | <count> violations | <count> (if --fix) |
 | Dead/Duplicated Code | PASS/FAIL | <count> dead, <count> duplicated | <count> (if --fix) |
 | Tests | PASS/FAIL | <count> failing, coverage: <pct>% | <count> (if --fix) |
 | **Overall** | **PASS/FAIL** | **<total>** | **<total>** |
@@ -413,9 +386,9 @@ cleanup-report/
 
 ## Execution Notes
 
-**CLAUDE.md is king.** If the project says "we use `eslint-disable` for generated files" or "skip HATEOAS for internal microservice endpoints" or "we intentionally keep the old API types for backwards compat" — follow those rules. Best practices are defaults, not mandates.
+**CLAUDE.md is king.** If the project says "we use `eslint-disable` for generated files" or "we intentionally keep the old API types for backwards compat" — follow those rules. Best practices are defaults, not mandates. Phase 3 (Project Principles) only enforces what `CLAUDE.md` explicitly declares — no assumptions about HATEOAS, REST conventions, or any other architectural pattern unless the project specifies them.
 
-**Fix in dependency order.** Build errors can cause false-positive lint failures. Dead code removal can cause build errors. Fix in this order: dead code removal, build errors, lint issues, HATEOAS compliance, test fixes, coverage improvement.
+**Fix in dependency order.** Build errors can cause false-positive lint failures. Dead code removal can cause build errors. Fix in this order: dead code removal, build errors, lint issues, project principles compliance, test fixes, coverage improvement.
 
 **Don't over-abstract.** When removing duplicated code, only extract when it genuinely simplifies the codebase. Three similar 5-line blocks are not necessarily worth a shared utility with 3 parameters.
 
