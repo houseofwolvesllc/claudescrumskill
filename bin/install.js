@@ -30,7 +30,9 @@ const skills = [
   'sprint-plan',
   'sprint-status',
   'sprint-release',
-  'project-emulate'
+  'project-emulate',
+  'project-orchestrate',
+  'project-cleanup'
 ];
 
 function copyRecursive(src, dest) {

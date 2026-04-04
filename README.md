@@ -1,8 +1,10 @@
 # Claude Scrum Skill
 
-An open-source npm package of Claude Code skills that give you a complete scrum pipeline — from PRD to production release — with Claude as your scrum master. Includes project scaffolding, sprint planning, status tracking, sprint releases, and full-project emulation testing. One PR per sprint. You stay in the executive seat.
+An open-source npm package of Claude Code skills that give you a complete scrum pipeline — from PRD to production release — with Claude as your scrum master. Includes project scaffolding, sprint planning, status tracking, sprint releases, full-project emulation testing, and autonomous orchestration. One PR per sprint, or let Claude drive the entire lifecycle hands-free.
 
 ```
+Manual mode — you invoke each skill:
+
 PRD → /project-scaffold → GitHub Project with sprints, stories, branches
                               ↓
                         /sprint-plan → populate the next sprint
@@ -16,6 +18,26 @@ PRD → /project-scaffold → GitHub Project with sprints, stories, branches
                      You review one PR → merge to development
                               ↓
                         /sprint-plan → next cycle
+
+Autonomous mode — one command drives the full lifecycle:
+
+PRD (optional) → /project-orchestrate (scaffolds PRD if given, else uses existing board)
+                              ↓
+              ┌──────── Epic Completion Loop ────────┐
+              │  /sprint-plan → execute stories      │
+              │  → /sprint-release → merge to dev    │
+              │  → branch cleanup → next sprint      │
+              │  (repeat until all epics done)        │
+              └──────────────┬───────────────────────┘
+                              ↓
+              ┌──── Emulation Hardening Loop ────────┐
+              │  /project-emulate → parse findings   │
+              │  → generate PRD → /project-scaffold  │
+              │  → fix sprints → re-emulate          │
+              │  (repeat until clean)                 │
+              └──────────────┬───────────────────────┘
+                              ↓
+                     Production-ready codebase
 ```
 
 ## Installation
@@ -29,7 +51,7 @@ Add the marketplace and install the plugin directly from GitHub:
 /plugin install claude-scrum-skill@houseofwolvesllc
 ```
 
-This installs all five skills as a native Claude Code plugin with automatic updates. To update later:
+This installs all six skills as a native Claude Code plugin with automatic updates. To update later:
 
 ```
 /plugin marketplace update
@@ -181,13 +203,30 @@ Claude reads the entire codebase and runs a multi-phase validation:
 5. **Full lifecycle walkthrough** — emulates each role executing each action from deployment through teardown
 6. **Coverage report** — permission matrix, categorized issues, and missing coverage
 
-### 10. Repeat
+### 10. Orchestrate (Optional — Full Autonomy)
+
+```
+# Scaffold a PRD and orchestrate only its epics/stories
+/project-orchestrate path/to/prd.md
+
+# Orchestrate all open epics/stories on an existing project
+/project-orchestrate owner/repo
+
+# Both — scaffold PRD into a specific repo, then orchestrate
+/project-orchestrate path/to/prd.md owner/repo
+```
+
+Instead of manually invoking each skill at every step, let Claude drive the entire lifecycle autonomously. Pass a PRD to scaffold and execute just that work, or pass a repo to execute everything on the board. The orchestrator loops through sprint planning, story execution (parallel subagents for `executor:claude` stories), sprint release, merge to development, and branch cleanup — repeating until all in-scope epics are complete. Then it runs emulation hardening loops against the **entire codebase** (not just the new work): emulate, generate a findings PRD, scaffold a hardening epic, fix everything, and re-emulate until the codebase is clean.
+
+Human/cowork stories are skipped (they roll over). Merges to `development` happen automatically. Merges to `main` still require your review. State is persisted to `.claude/orchestration-state.md` so progress survives session restarts.
+
+### 11. Repeat (Manual Mode)
 
 ```
 /sprint-plan owner/repo
 ```
 
-Start the next sprint. The cycle continues until the project is complete.
+If you prefer manual control, start the next sprint. The cycle continues until the project is complete.
 
 ## How It Works
 
@@ -243,6 +282,7 @@ Located at: `project-scaffold/references/CONVENTIONS.md`
 | `sprint-status` | `/sprint-status [owner/repo]` | Progress report and burndown |
 | `sprint-release` | `/sprint-release [owner/repo]` | Close sprint, open release PR to development |
 | `project-emulate` | `/project-emulate` | Integration seams, layer contracts, cross-service payloads, and full lifecycle walkthrough |
+| `project-orchestrate` | `/project-orchestrate [prd-path] [owner/repo]` | Autonomous lifecycle driver — sprint loop + emulation hardening until done |
 
 ## Customization
 
@@ -260,6 +300,40 @@ Edit `CONVENTIONS.md` → "Executor Assignment Guidelines" to tune what gets ass
 
 ### Adding Epics
 Epics map to your PRD structure. To add new epics later, run `/project-scaffold` with the new PRD — it detects the existing project and lets you add stories to existing epics or create new ones.
+
+## Autonomous Orchestration
+
+The `/project-orchestrate` skill is a meta-orchestrator that chains all other skills into a fully autonomous pipeline. After scaffolding your project, run it once and Claude handles everything else.
+
+### What It Does
+
+**Phase 1 — Epic Completion Loop:**
+1. Detects open epics and presents an overview
+2. Plans sprints via `/sprint-plan`
+3. Executes `executor:claude` stories in parallel via subagents (skips human/cowork — they roll over)
+4. Releases via `/sprint-release`
+5. Merges the release PR to `development` (pre-authorized, no confirmation needed)
+6. Cleans up merged branches
+7. Repeats until all epics are complete
+
+**Phase 2 — Emulation Hardening Loop:**
+1. Runs `/project-emulate` to discover issues
+2. Generates a hardening PRD from critical/warning findings
+3. Scaffolds a "Hardening (Run N)" epic via `/project-scaffold`
+4. Executes the hardening sprint (same loop as Phase 1)
+5. Re-emulates — if new issues found, repeats; if clean, done
+
+### State Persistence
+
+Orchestration state is saved to `.claude/orchestration-state.md` (human-readable markdown). If Claude hits a usage cap or the session restarts, it picks up exactly where it left off. The state file tracks the current phase, epic, sprint, story status, and a running log.
+
+### Safety Boundaries
+
+- Merges to `development` are pre-authorized (standing auth)
+- Merges to `main` are **never** automatic — always requires your review
+- Failed stories are retried once, then marked blocked — they don't halt the pipeline
+- Merge conflicts pause orchestration and escalate to you
+- After 3 hardening runs without a clean emulation, Claude pauses and asks for guidance
 
 ## Tips
 

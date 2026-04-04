@@ -22,6 +22,14 @@
     {
       "name": "project-emulate",
       "path": "skills/project-emulate"
+    },
+    {
+      "name": "project-orchestrate",
+      "path": "skills/project-orchestrate"
+    },
+    {
+      "name": "project-cleanup",
+      "path": "skills/project-cleanup"
     }
   ]
 }
