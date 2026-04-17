@@ -11,25 +11,32 @@ Fully autonomous project lifecycle driver. Plans sprints, executes stories via p
 
 ## Before You Start
 
-1. Read `../project-scaffold/references/CONVENTIONS.md` for all project management standards. Follow these conventions exactly.
-2. Read the project's `CLAUDE.md` (if it exists) for project-specific rules. **All subagents you spawn must also read and follow `CLAUDE.md`** — include this instruction explicitly in every subagent prompt.
-3. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in GitHub API commands and code — never in communication with the user.
-4. Confirm the `gh` CLI is authenticated by running `gh auth status`.
-5. Identify the target repository. If the user doesn't specify, detect from the current git remote or ask.
+1. Read `../shared/references/CONVENTIONS.md` for all project management standards. Follow these conventions exactly.
+2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` value. Read `../shared/references/PROVIDERS.md` for provider-specific API commands when using a remote provider.
+3. Read the project's `CLAUDE.md` (if it exists) for project-specific rules. **All subagents you spawn must also read and follow `CLAUDE.md`** — include this instruction explicitly in every subagent prompt.
+4. Read `../shared/references/PERSONAS.md` for role preambles. When spawning
+   subagents, select the persona matching each story's `persona:*` label (GitHub mode)
+   or `persona` frontmatter field (local mode). If no persona exists, use `impl` (the default).
+5. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in GitHub API commands and code — never in communication with the user.
+6. **If `scaffolding: "github"`:** Confirm the `gh` CLI is authenticated by running `gh auth status`. Identify the target repository. If the user doesn't specify, detect from the current git remote or ask.
+7. **If `scaffolding: "jira"`:** Verify `JIRA_SITE`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` env vars are set. Read `jira.project_key` from config.json.
+8. **If `scaffolding: "trello"`:** Verify `TRELLO_API_KEY` and `TRELLO_TOKEN` env vars are set. Read `trello.board_id` from config.json.
+9. **If `scaffolding: "local"`:** Skip authentication. Stories are tracked in local backlog files. Git operations (branches, commits, merges) still apply.
 
 ### Standing Authorizations
 
 The following actions are pre-authorized and do NOT require user confirmation during orchestration:
 
-- **Merge release PRs to `development`** — after the release PR is created and CI passes
+- **Merge release branches to `development`** — via PR (GitHub) or direct merge (local), after CI passes
 - **Delete merged story and release branches** — standard cleanup after merge
 - **Create and switch between feature/release branches** — normal git workflow
+- **Update story file frontmatter** (local mode only) — status, sprint, persona fields
 
 The following actions are NEVER authorized:
 
 - **Merge anything to `main`** — always requires explicit human review
 - **Force push or destructive git operations** — never permitted
-- **Close or delete issues without completing them** — incomplete work rolls over
+- **Close or delete issues/stories without completing them** — incomplete work rolls over
 
 ---
 
@@ -37,23 +44,23 @@ The following actions are NEVER authorized:
 
 `$ARGUMENTS` can be:
 
-1. **A PRD file path** (e.g., `path/to/prd.md`) — scaffold the PRD first via `/project-scaffold`, then orchestrate **only the epics and stories created from that PRD**. The repo is detected from the current git remote (or ask the user).
-2. **A repo identifier** (e.g., `owner/repo`) — orchestrate **all open epics and stories** already on the project board. No scaffolding step.
-3. **A PRD file path + repo identifier** (e.g., `path/to/prd.md owner/repo`) — scaffold the PRD into the specified repo, then orchestrate only those epics/stories.
-4. **Nothing** — detect the repo from the current git remote and orchestrate all open epics/stories.
+1. **A PRD file path** (e.g., `path/to/prd.md`) — scaffold the PRD first via `/project-scaffold`, then orchestrate **only the epics and stories created from that PRD**. In GitHub mode the repo is detected from the current git remote (or ask the user).
+2. **A repo identifier** (e.g., `owner/repo`, GitHub mode only) — orchestrate **all open epics and stories** already on the project board. No scaffolding step.
+3. **A PRD file path + repo identifier** (e.g., `path/to/prd.md owner/repo`, GitHub mode only) — scaffold the PRD into the specified repo, then orchestrate only those epics/stories.
+4. **Nothing** — GitHub mode: detect the repo from the current git remote and orchestrate all open epics/stories. Local mode: orchestrate all open epics/stories in the configured backlog directory.
 
-**How to distinguish:** If an argument is a path to an existing file, treat it as a PRD. Otherwise treat it as a repo identifier.
+**How to distinguish:** If an argument is a path to an existing file, treat it as a PRD. Otherwise treat it as a repo identifier (GitHub mode only).
 
 ### Scope Rules
 
-- **Phase 1 (Epic Completion Loop):** When a PRD is provided, only execute epics/stories that were created from that PRD. Record the milestone numbers and issue numbers created during scaffolding and limit the sprint loop to those. When no PRD is provided, execute all open epics/stories on the project board.
+- **Phase 1 (Epic Completion Loop):** When a PRD is provided, only execute epics/stories that were created from that PRD. In GitHub mode, record the milestone numbers and issue numbers. In local mode, record the epic directory names and story file paths. When no PRD is provided, execute all open epics/stories.
 - **Phase 2 (Emulation Hardening Loop):** Always applies to the **entire codebase** regardless of whether a PRD was provided. Emulation validates the whole project, not just the new work.
 
 ---
 
 ## State Management
 
-Orchestration state is persisted to `.claude/orchestration-state.md` so progress survives context compaction, usage caps, and session restarts. This file is human-readable markdown.
+Orchestration state is persisted to `.claude-scrum-skill/orchestration-state.md` so progress survives context compaction, usage caps, and session restarts. This file is human-readable markdown.
 
 ### State File Structure
 
@@ -84,11 +91,13 @@ Orchestration state is persisted to `.claude/orchestration-state.md` so progress
 | Dashboard | pending | 8 | 0 | 8 |
 
 ## Current Sprint Stories
-| # | Title | Executor | Status | Subagent |
-|---|-------|----------|--------|----------|
-| 12 | Auth endpoint | claude | done | — |
-| 13 | Login UI | claude | in-progress | agent-3 |
-| 14 | API keys | human | skipped | — |
+| # | Title | Executor | Persona | Status | Subagent |
+|---|-------|----------|---------|--------|----------|
+| 12 | Auth endpoint | claude | impl | done | — |
+| 13 | Login UI | claude | impl | in-progress | agent-3 |
+| 14 | API keys | human | — | skipped | — |
+| 15 | CI pipeline | claude | ops | done | — |
+| 16 | Auth ADR | claude | research | done | — |
 
 ## Dependency Map
 - #15 blocked-by #12 → unblocked (completed)
@@ -103,7 +112,7 @@ Orchestration state is persisted to `.claude/orchestration-state.md` so progress
 
 ### State Operations
 
-**On startup**, check for an existing `.claude/orchestration-state.md`:
+**On startup**, check for an existing `.claude-scrum-skill/orchestration-state.md`:
 - If found and `Status: running` → resume from the recorded position
 - If found and `Status: paused` → ask the user whether to resume or restart
 - If found and `Status: completed` → ask the user whether to start a fresh run
@@ -130,10 +139,15 @@ Drive all open epics to completion through iterative sprint cycles.
 /project-scaffold <prd-path>
 ```
 
-After scaffolding completes, capture the milestone numbers and issue numbers that were created. These define the **orchestration scope** — Phase 1 will only plan and execute sprints for these specific epics and stories. Record them in the state file under `Scoped Milestones` and `Scoped Issues`.
+After scaffolding completes:
+- **GitHub mode:** Capture the milestone numbers and issue numbers that were created. Record them in the state file under `Scoped Milestones` and `Scoped Issues`.
+- **Local mode:** Capture the epic directory names and story file paths created. Record them in the state file under `Scoped Epics` and `Scoped Stories`.
+
+These define the **orchestration scope** — Phase 1 will only plan and execute sprints for these specific epics and stories.
 
 **If no PRD was provided** — detect and assess the existing project state:
 
+**GitHub mode:**
 ```bash
 # Get open epics (milestones)
 gh api repos/<owner/repo>/milestones --jq '.[] | select(.state=="open") | {number, title, open_issues, closed_issues}'
@@ -143,6 +157,13 @@ gh issue list --repo <owner/repo> --state open --label "type:story" --json numbe
 
 # Get current sprint iteration info via GraphQL
 # Check for any in-progress work
+```
+
+**Local mode:**
+```bash
+# Read all epic directories with open status
+# For each <backlog-path>/<epic-slug>/_epic.md, check frontmatter status
+# Read all story files, filter by status != "done"
 ```
 
 All open epics and stories are in scope for Phase 1.
@@ -169,13 +190,12 @@ Initialize the state file and proceed.
 
 ### Step 2: Sprint Planning
 
-Invoke the `/sprint-plan` skill for the current epic:
+Invoke the `/sprint-plan` skill:
 
-```
-/sprint-plan <owner/repo>
-```
+- **GitHub mode:** `/sprint-plan <owner/repo>`
+- **Local mode:** `/sprint-plan` (reads from configured backlog path)
 
-**If PRD-scoped:** Ensure the sprint plan only pulls from the scoped issues (recorded in the state file). If `/sprint-plan` proposes stories outside the scope, exclude them — they belong to other work and should not be mixed into this orchestration run.
+**If PRD-scoped:** Ensure the sprint plan only pulls from the scoped stories (recorded in the state file). If `/sprint-plan` proposes stories outside the scope, exclude them — they belong to other work and should not be mixed into this orchestration run.
 
 Since this is autonomous mode, accept the default sprint plan without waiting for user confirmation — the skill's proposed sprint based on priority ordering and velocity target is the plan.
 
@@ -189,21 +209,47 @@ Execute all `executor:claude` stories in the current sprint. Skip `executor:huma
 
 For stories with no unresolved dependencies, spawn parallel Task subagents (using the `Task` tool with `subagent_type: "Bash"` or `subagent_type: "general-purpose"` as appropriate). Each subagent receives:
 
+**Persona resolution:** Before spawning each subagent, resolve its persona:
+
+1. **GitHub mode:** Check the story's labels for a `persona:*` label (e.g., `persona:ops`, `persona:research`).
+   **Local mode:** Read the `persona` field from the story file's frontmatter.
+2. If found, load the matching preamble from `../shared/references/PERSONAS.md`.
+3. If no persona exists, use the `impl` preamble.
+4. If the persona references a name not defined in `PERSONAS.md`, fall back
+   to `impl` and log a warning.
+
+**Subagent prompt structure:**
+
 ```
+<persona preamble from PERSONAS.md>
+
+---
+
 You are executing story #<number> for repo <owner/repo>.
 
-**IMPORTANT:** First read the project's CLAUDE.md file if it exists, and follow all instructions in it.
+**IMPORTANT:** First read the project's CLAUDE.md file if it exists, and
+follow all instructions in it. CLAUDE.md is authoritative for stack,
+patterns, and style — it overrides any general guidance in this preamble.
 
 **Story:** <title>
-**Acceptance criteria:** <from issue body>
-**Branch strategy:** Create branch `story/<number>-<slug>` from `release/<epic-slug>`, implement, commit, push, and open a PR targeting `release/<epic-slug>`.
+**Acceptance criteria:** <from issue body or story file>
+**Branch strategy:** Create branch `story/<number>-<slug>` from
+`release/<epic-slug>`, implement, commit, push, and open a PR targeting
+`release/<epic-slug>`.
 
 After implementation:
+
+GitHub mode:
 1. Open a PR with a clear description of changes
 2. Ensure CI passes
 3. The PR should target the release branch, NOT development or main
+4. Do NOT merge the PR — just open it and report back.
 
-Do NOT merge the PR — just open it and report back.
+Local mode:
+1. Commit all changes to the story branch
+2. Merge the story branch into release/<epic-slug>
+3. Push the release branch
+4. Report back what was implemented.
 ```
 
 **Execution rules:**
@@ -212,11 +258,26 @@ Do NOT merge the PR — just open it and report back.
 2. **Concurrency limit:** Run up to 3 subagents in parallel to avoid rate limiting.
 3. **Progress tracking:** As each subagent completes, update the state file and check if any blocked stories are now unblocked. Spawn newly unblocked stories immediately.
 4. **Failure handling:** If a subagent fails, retry once with additional context about the failure. If it fails again, mark the story as blocked with a note and continue with remaining stories.
-5. **PR merging:** After a story PR is opened and CI passes, merge it to the release branch:
-   ```bash
-   gh pr merge <pr-number> --repo <owner/repo> --squash --auto
-   ```
+5. **Story completion:**
+   - **GitHub mode:** After a story PR is opened and CI passes, merge it to the release branch:
+     ```bash
+     gh pr merge <pr-number> --repo <owner/repo> --squash --auto
+     ```
+   - **Local mode:** The subagent merges the story branch directly into the release branch. After completion, update the story file's frontmatter to `status: done`.
 6. **Skip human/cowork stories:** Log them as skipped in the state file. They roll over naturally during sprint release.
+7. **Persona routing:** When resolving personas:
+   - **GitHub mode:**
+     ```bash
+     persona=$(gh issue view <number> --repo <owner/repo> --json labels \
+       --jq '[.labels[].name | select(startswith("persona:"))] | first // empty' \
+       | sed 's/persona://')
+     persona=${persona:-impl}
+     ```
+   - **Local mode:** Read the `persona` field from the story file's frontmatter. Default to `impl` if not set.
+
+   Load the corresponding preamble section from `../shared/references/PERSONAS.md`
+   and prepend it to the subagent prompt. Log the persona assignment in the
+   state file.
 
 **Progress updates** — Print a concise progress line every 2-3 story completions:
 
@@ -228,23 +289,110 @@ Sprint 2: 5/8 stories done (13/19 pts) — #21 auth middleware ✓, #22 rate lim
 
 Once all `executor:claude` stories in the sprint are complete (or retried and marked blocked), invoke the sprint release skill:
 
+- **GitHub mode:** `/sprint-release <owner/repo>`
+- **Local mode:** `/sprint-release` (reads from configured backlog path)
+
+This closes the sprint, handles rolled-over stories, and merges the release branch to `development` (local mode: direct merge; GitHub mode: opens a release PR).
+
+### Step 5: Review and Merge to Development
+
+After `/sprint-release` completes, run the automated review gate before
+finalizing.
+
+**Step 5a: Automated Review**
+
+Spawn a review subagent using the `review` persona from
+`../shared/references/PERSONAS.md`:
+
+**GitHub mode:**
 ```
-/sprint-release <owner/repo>
+Task({
+  subagent_type: "general-purpose",
+  prompt: "<review preamble from PERSONAS.md>
+
+  Review PR #<pr-number> in <owner/repo>.
+
+  The PR merges release/<epic-slug> into development and contains all
+  stories from Sprint <N>:
+  <list story numbers, titles, and their personas>
+
+  Read the full diff. Post review comments anchored to specific files/lines.
+  End with a summary comment: finding counts by severity and a
+  recommendation of merge, merge-with-followup-issues, or block.
+
+  IMPORTANT: Read the project's CLAUDE.md first — review against the
+  project's actual conventions, not generic standards."
+})
 ```
 
-This closes the sprint, handles rolled-over stories, and opens the release PR to `development`.
+**Local mode:**
+```
+Task({
+  subagent_type: "general-purpose",
+  prompt: "<review preamble from PERSONAS.md>
 
-### Step 5: Merge Release PR to Development
+  Review the sprint release merge on the development branch.
 
-After `/sprint-release` creates the release PR, merge it to `development` (standing authorization — no user confirmation needed):
+  Run: git diff <pre-merge-sha>..HEAD on the development branch.
+
+  This merge contains all stories from Sprint <N>:
+  <list story file paths, titles, and their personas>
+
+  Read the full diff. Report findings with specific file paths and line
+  numbers. End with a summary: finding counts by severity and a
+  recommendation of accept, accept-with-followups, or revert.
+
+  IMPORTANT: Read the project's CLAUDE.md first — review against the
+  project's actual conventions, not generic standards."
+})
+```
+
+**Step 5b: Act on Review Findings**
+
+- **If recommendation is `block`/`revert`** (any critical findings):
+  Pause orchestration. Present the critical findings to the user and ask
+  how to proceed. Update state file with `Status: paused`.
+  In local mode, the merge already landed — if the user chooses to revert,
+  run `git revert <merge-commit>` on development.
+
+- **If recommendation is `merge-with-followup-issues`/`accept-with-followups`** (warnings only):
+  Create follow-up items for each warning finding:
+  - **GitHub mode:**
+    ```bash
+    gh issue create --repo <owner/repo> --title "Follow-up: <finding summary>" \
+      --body "<finding detail from review>" \
+      --label "type:chore" --label "source:review" --label "executor:claude"
+    ```
+  - **Local mode:** Create a story file in the appropriate epic directory:
+    ```markdown
+    <!-- <backlog-path>/<epic-slug>/NNN-followup-<slug>.md -->
+    ---
+    title: "Follow-up: <finding summary>"
+    status: backlog
+    executor: claude
+    priority: P2-medium
+    points: 2
+    labels: [type:chore, source:review]
+    persona: impl
+    ---
+    <finding detail from review>
+    ```
+  Then proceed.
+
+- **If recommendation is `merge`/`accept`** (clean or info-only):
+  Proceed.
+
+**Step 5c: Merge (GitHub mode only)**
 
 ```bash
-# Wait for CI to pass on the release PR
-gh pr checks <pr-number> --repo <owner/repo> --watch
-
-# Merge the release PR to development
 gh pr merge <pr-number> --repo <owner/repo> --squash
 ```
+
+In local mode, `/sprint-release` already merged the release branch to
+development directly — no additional merge step needed.
+
+**Skip review:** If the environment variable `ORCHESTRATE_SKIP_REVIEW=1` is
+set, skip Step 5a/5b entirely (original behavior).
 
 If merge conflicts exist:
 1. Attempt automatic resolution by rebasing the release branch onto `development`
@@ -281,22 +429,32 @@ Never delete `main` or `development`.
 
 After each sprint cycle, check if the current epic is complete:
 
+**GitHub mode:**
 ```bash
 # Check remaining open issues for this epic
 gh api repos/<owner/repo>/milestones/<milestone-number> --jq '{open_issues, closed_issues}'
+```
+
+**Local mode:**
+```bash
+# Count story statuses in the epic directory
+# Read all story files in <backlog-path>/<epic-slug>/, check frontmatter status
 ```
 
 **If open issues remain** (excluding `executor:human`/`executor:cowork` stories that were skipped):
 - Check if remaining stories are all human/cowork → if yes, the epic's claude-executable work is done, move to next epic
 - Otherwise → loop back to Step 2 for another sprint
 
-**If all issues are closed:**
-```bash
-# Close the epic
-gh api repos/<owner/repo>/milestones/<milestone-number> -X PATCH -f state="closed"
-```
+**If all stories are complete:**
 
-**If more in-scope epics remain** → move to the next epic (by priority) and loop back to Step 2. When PRD-scoped, only consider epics listed in `Scoped Milestones`.
+- **GitHub mode:**
+  ```bash
+  # Close the epic
+  gh api repos/<owner/repo>/milestones/<milestone-number> -X PATCH -f state="closed"
+  ```
+- **Local mode:** Update `_epic.md` frontmatter to `status: closed`.
+
+**If more in-scope epics remain** → move to the next epic (by priority) and loop back to Step 2. When PRD-scoped, only consider epics listed in the state file's scoped epics.
 
 **If all in-scope epics are complete** → transition to Phase 2.
 
@@ -327,11 +485,11 @@ Invoke the project emulation skill:
 /project-emulate
 ```
 
-This produces the full emulation report in `.claude/reports/emulation-report/`, including `ISSUES.md` with categorized findings.
+This produces the full emulation report in `.claude-scrum-skill/reports/emulation-report/`, including `ISSUES.md` with categorized findings.
 
 ### Step 9: Parse Findings
 
-Read and parse `.claude/reports/emulation-report/ISSUES.md`. Extract findings by severity:
+Read and parse `.claude-scrum-skill/reports/emulation-report/ISSUES.md`. Extract findings by severity:
 
 - **Critical** — must fix (blocks production readiness)
 - **Warning** — should fix (degrades quality or reliability)
@@ -353,7 +511,7 @@ Generating hardening PRD for 10 actionable findings.
 
 ### Step 10: Generate Hardening PRD
 
-Create a PRD document at `.claude/hardening-prd-run-<N>.md` from the emulation findings. This PRD becomes the input for scaffolding a hardening epic.
+Create a PRD document at `.claude-scrum-skill/hardening-prd-run-<N>.md` from the emulation findings. This PRD becomes the input for scaffolding a hardening epic.
 
 Structure the PRD as:
 
@@ -388,7 +546,7 @@ Only include critical and warning findings. Info-level findings are logged but n
 Invoke project scaffold with the hardening PRD to create a single "Hardening (Run N)" epic:
 
 ```
-/project-scaffold .claude/hardening-prd-run-<N>.md
+/project-scaffold .claude-scrum-skill/hardening-prd-run-<N>.md
 ```
 
 This creates the milestone, issues, labels, and branches for the hardening work.
@@ -445,7 +603,7 @@ This runs across the **entire codebase** and automatically fixes:
 - Dead and duplicated code (unused exports, files, dependencies, commented-out code)
 - Failing tests and coverage gaps (targets 50% minimum across all metrics)
 
-After cleanup completes, read the report at `.claude/reports/cleanup-report/SUMMARY.md`:
+After cleanup completes, read the report at `.claude-scrum-skill/reports/cleanup-report/SUMMARY.md`:
 
 - **If all phases PASS** → proceed to Step 15 (Completion Summary)
 - **If any phase FAIL** → review the report, attempt a second cleanup pass. If issues persist after two passes, log remaining issues and proceed to Step 15 with a note
@@ -489,7 +647,7 @@ Print a comprehensive summary of the entire orchestration run:
 - **Project Principles:** ✅ compliant / ⚠️ <N> violations / ⏭️ skipped (no principles in CLAUDE.md)
 - **Dead code:** ✅ none / ⚠️ <N> items remaining
 - **Tests:** ✅ passing (<pct>% coverage) / ⚠️ <N> failing, <pct>% coverage
-- **Full report:** .claude/reports/cleanup-report/SUMMARY.md
+- **Full report:** .claude-scrum-skill/reports/cleanup-report/SUMMARY.md
 
 ### Timeline
 - Started: <timestamp>
@@ -504,6 +662,45 @@ Print a comprehensive summary of the entire orchestration run:
 
 Update the state file with `Status: completed`.
 
+### Step 16: ADR Update
+
+Review the work completed during this orchestration run and determine if any
+decisions merit an Architecture Decision Record.
+
+Read the ADR output path from `../shared/config.json` (key: `paths.adr`,
+default: `.claude-scrum-skill/adr`).
+
+1. Read all existing ADRs in the configured ADR directory to understand what's
+   already documented and the numbering/format convention in use.
+2. Review the epics completed, hardening fixes applied, and any significant
+   technical choices made during orchestration (e.g., new libraries adopted,
+   patterns introduced, infrastructure changes, security model decisions).
+3. For each decision that is **non-obvious, hard to reverse, or would
+   surprise a future contributor**, create a new ADR following the existing
+   format and numbering sequence.
+4. Skip decisions that are already covered by an existing ADR or that are
+   trivial/self-evident from the code.
+
+Print a summary:
+
+```
+### ADRs
+- **Existing:** <N> ADRs in .claude-scrum-skill/adr/
+- **Created:** <N> new ADRs
+  - ADR-<NNN>: <title>
+  - ADR-<NNN>: <title>
+- **Skipped:** No new decisions warranting ADRs (if none created)
+```
+
+### Step 17: Clean Up State File
+
+Delete `.claude-scrum-skill/orchestration-state.md` so the next orchestration
+run starts with a clean slate:
+
+```bash
+rm -f .claude-scrum-skill/orchestration-state.md
+```
+
 ---
 
 ## Communication Pattern
@@ -517,13 +714,15 @@ Keep the user informed without being noisy:
 | Every 2-3 stories | Progress line with counts and latest completions |
 | Story failure | Immediate single-line alert with story number and error |
 | Sprint released | Sprint scorecard — 3-4 lines |
+| Review complete | Recommendation + finding counts — 2 lines |
 | Merge to development | Single confirmation line |
 | Epic completed | Epic summary — 3-4 lines |
 | Phase transition | Full phase summary |
 | Hardening run start | Run number and finding counts |
 | Cleanup started | Single line: "Running project cleanup..." |
 | Cleanup complete | Phase 3 summary — 5-6 lines with pass/fail per dimension |
-| Orchestration complete | Full completion summary (Step 15) |
+| ADRs updated | Count of new ADRs + titles — 2-3 lines |
+| Orchestration complete | Full completion summary (Step 17) |
 | Error/pause | Immediate alert with context and options |
 
 ---
@@ -541,7 +740,7 @@ Keep the user informed without being noisy:
 - Update state file with conflict details for resume
 
 ### State File Corruption
-- If `.claude/orchestration-state.md` is unreadable or malformed, reconstruct state from GitHub:
+- If `.claude-scrum-skill/orchestration-state.md` is unreadable or malformed, reconstruct state from GitHub:
   ```bash
   # Get sprint and story status from the project board
   # Get branch state from git

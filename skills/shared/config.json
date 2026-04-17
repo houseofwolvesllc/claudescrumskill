@@ -1,0 +1,14 @@
+{
+  "scaffolding": "local",
+  "paths": {
+    "specs": ".claude-scrum-skill/specs",
+    "adr": ".claude-scrum-skill/adr",
+    "backlog": ".claude-scrum-skill/backlog"
+  },
+  "jira": {
+    "project_key": ""
+  },
+  "trello": {
+    "board_id": ""
+  }
+}

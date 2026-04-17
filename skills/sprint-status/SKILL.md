@@ -9,16 +9,70 @@ Generate a comprehensive status report for the active sprint.
 
 ## Before You Start
 
-1. Read `../project-scaffold/references/CONVENTIONS.md` for project management standards.
-2. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in GitHub API commands and code — never in communication with the user.
-3. Confirm the `gh` CLI is authenticated.
+1. Read `../shared/references/CONVENTIONS.md` for project management standards.
+2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` value (default: `.claude-scrum-skill/backlog`).
+3. Read `../shared/references/PROVIDERS.md` for provider-specific API commands when operating in remote mode.
+4. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in API commands and code — never in communication with the user.
+5. **If `scaffolding: "github"`:** Confirm the `gh` CLI is authenticated.
+6. **If `scaffolding: "jira"`:** Verify `JIRA_SITE`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` env vars are set.
+7. **If `scaffolding: "trello"`:** Verify `TRELLO_API_KEY` and `TRELLO_TOKEN` env vars are set.
+8. **If `scaffolding: "local"`:** Skip authentication. Status is read from local files.
 
 ## Input
 
-`$ARGUMENTS` should be the repo identifier and optionally the project number.
-If not provided, detect from the current git remote or ask the user.
+**GitHub mode:** `$ARGUMENTS` should be the repo identifier and optionally the project number. If not provided, detect from the current git remote or ask the user.
 
-## Status Report Procedure
+**Jira/Trello mode:** `$ARGUMENTS` is ignored. Project key or board ID is read from config.json. Use the provider-specific API commands from PROVIDERS.md to query story status — following the same reporting logic as GitHub mode.
+
+**Local mode:** `$ARGUMENTS` is ignored. Status is read from the configured backlog path.
+
+---
+
+## Local Status Report Procedure
+
+When `scaffolding: "local"`, generate the status report from local backlog
+files.
+
+### Local Step 1: Gather Data
+
+Find the active sprint:
+
+```bash
+# Find the active sprint file
+grep -l 'status: active' <backlog-path>/sprints/sprint-*.md
+```
+
+Read the active sprint file to get the story list. Then read each referenced
+story file's frontmatter for current status, executor, points, persona,
+and labels.
+
+Also check git state for additional signals:
+```bash
+# Recent commits on release branches
+git log --oneline --since="1 week ago" --all --grep="story/"
+
+# Open local branches (proxy for in-progress work)
+git branch --list 'story/*'
+```
+
+### Local Step 2: Categorize Stories
+
+Same categories as GitHub mode — group stories by their frontmatter
+`status` field: `done`, `in-progress`, `ready`, `blocked`, `needs-context`.
+
+### Local Step 3: Generate Report
+
+Same report format as GitHub mode. Use story file paths instead of issue
+numbers. For "Release Branch Health", check git branch state directly
+instead of via `gh`.
+
+### Local Step 4: Actionable Recommendations
+
+Same as GitHub mode.
+
+---
+
+## GitHub Status Report Procedure
 
 ### Step 1: Gather Data
 

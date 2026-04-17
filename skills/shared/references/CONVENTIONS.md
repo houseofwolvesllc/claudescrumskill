@@ -66,6 +66,22 @@ Create these views on every project board:
 - `P2-medium` — Important but not blocking
 - `P3-low` — Nice-to-have, polish, optimization
 
+### Persona Labels
+
+Persona labels control the posture of the subagent that executes the story
+during orchestration. See `PERSONAS.md` for full preamble definitions.
+
+| Label | Color | Meaning |
+|---|---|---|
+| *(no persona label)* | — | Default `impl` — standard implementation posture |
+| `persona:ops` | `#1D76DB` | Ops/infra — emphasizes idempotency, rollback, blast radius |
+| `persona:research` | `#D4C5F9` | Research — output is a document (ADR/RFC), not code |
+| `source:review` | `#BFDADC` | Issue was created from automated review findings |
+
+Persona labels are optional. Stories without a persona label use the `impl`
+posture. The `review` persona is not assigned to stories — it runs
+automatically as a release gate.
+
 ## Branch Strategy
 
 ### Branch Naming

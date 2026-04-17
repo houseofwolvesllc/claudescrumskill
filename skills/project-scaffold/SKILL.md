@@ -9,10 +9,14 @@ Scaffold a complete GitHub Project from one or more PRD or spec documents, or ad
 
 ## Before You Start
 
-1. Read `references/CONVENTIONS.md` in this skill's directory for all project management standards including label taxonomy, branch strategy, issue templates, custom fields, and executor assignment guidelines. Follow these conventions exactly.
-2. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in GitHub API commands and code — never in communication with the user.
-3. Confirm the `gh` CLI is authenticated by running `gh auth status`.
-4. Identify the target repository. If the user doesn't specify, ask which repo to use.
+1. Read `../shared/references/CONVENTIONS.md` for all project management standards including label taxonomy, branch strategy, issue templates, custom fields, and executor assignment guidelines. Follow these conventions exactly.
+2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` value (default: `.claude-scrum-skill/backlog`).
+3. Read `../shared/references/PROVIDERS.md` for provider-specific API commands when operating in remote mode (GitHub, Jira, or Trello).
+4. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in API commands and code — never in communication with the user.
+5. **If `scaffolding: "github"`:** Confirm the `gh` CLI is authenticated by running `gh auth status`. Identify the target repository. If the user doesn't specify, ask which repo to use.
+6. **If `scaffolding: "jira"`:** Verify `JIRA_SITE`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` environment variables are set. Read `jira.project_key` from config.json. Verify auth per PROVIDERS.md.
+7. **If `scaffolding: "trello"`:** Verify `TRELLO_API_KEY` and `TRELLO_TOKEN` environment variables are set. Read `trello.board_id` from config.json. Verify auth per PROVIDERS.md.
+8. **If `scaffolding: "local"`:** Skip authentication. No external service required — the backlog is file-based.
 
 ## Input
 
@@ -21,6 +25,357 @@ The user provides `$ARGUMENTS` which should be one or more file paths to PRD or 
 Read all provided documents thoroughly before proceeding.
 
 ## Scaffold Procedure
+
+Read `../shared/config.json` to determine mode. If `scaffolding` is `"local"`,
+follow the **Local Scaffold Procedure** below. Otherwise follow the
+**GitHub Scaffold Procedure**.
+
+---
+
+## Local Scaffold Procedure
+
+When `scaffolding: "local"`, create the entire backlog as local markdown files
+instead of GitHub issues, milestones, and project boards.
+
+### Local Step 1: Parse the PRD
+
+Same as GitHub Step 1 — extract project name, epics, stories, dependencies,
+and technical context. Present the summary and ask the user to confirm.
+
+### Local Step 2: Detect Existing Backlog
+
+Check if the configured backlog directory already exists:
+
+```bash
+ls <backlog-path>/PROJECT.md 2>/dev/null
+```
+
+**If found**, read `PROJECT.md` and list existing epic directories. Present
+options (same as GitHub mode):
+
+```
+Existing local backlog detected:
+  Project: <name>
+  Epics:
+    - <epic-slug>/ (N stories)
+    ...
+
+How should the PRD stories be added?
+  1. Create new epic(s) from this PRD
+  2. Add stories to an existing epic
+  3. Mix — map each PRD section to a new or existing epic
+```
+
+**If not found**, proceed with full scaffold.
+
+### Local Step 3: Create Project File
+
+Create `<backlog-path>/PROJECT.md`:
+
+```markdown
+---
+name: <Project Name>
+created: <ISO timestamp>
+sprints: []
+---
+
+# <Project Name>
+
+<Project description from PRD>
+```
+
+### Local Step 4: Create Epic Directories
+
+For each epic, create `<backlog-path>/<epic-slug>/`:
+
+```markdown
+<!-- <backlog-path>/<epic-slug>/_epic.md -->
+---
+title: <Epic Name>
+slug: <epic-slug>
+status: open
+created: <ISO timestamp>
+---
+
+# <Epic Name>
+
+<Epic description from PRD>
+```
+
+### Local Step 5: Create Story Files
+
+For each story, create a numbered file in the epic directory. Use sequential
+numbering within each epic: `001-<story-slug>.md`, `002-<story-slug>.md`, etc.
+
+```markdown
+<!-- <backlog-path>/<epic-slug>/001-<story-slug>.md -->
+---
+title: <Story title>
+epic: <epic-slug>
+status: backlog
+executor: claude | human | cowork
+priority: P0-critical | P1-high | P2-medium | P3-low
+points: <fibonacci estimate>
+labels:
+  - type:story
+  - executor:<type>
+  - <priority>
+  - epic:<epic-slug>
+  - ready-for-work
+persona: impl | ops | research
+blocked_by: []
+blocks: []
+sprint: null
+---
+
+## Objective
+
+<What this accomplishes — one clear sentence>
+
+## Acceptance Criteria
+
+- [ ] <Specific, testable criterion>
+- [ ] <Specific, testable criterion>
+
+## Technical Context
+
+<Architecture notes, relevant files, approach guidance>
+
+## Dependencies
+
+- **Blocked by:** <epic-slug>/NNN-slug or "none">
+- **Blocks:** <epic-slug>/NNN-slug or "none">
+```
+
+Use the same executor assignment and story point guidelines from
+CONVENTIONS.md as in GitHub mode.
+
+### Local Step 6: Generate Summary
+
+```
+## Project Scaffold Complete (Local Mode)
+
+**Project:** <name>
+**Backlog path:** <backlog-path>/
+**Mode:** Local file-based backlog
+
+### Epics
+- <epic-slug>/ — <N> stories, <total points> points
+...
+
+### Story Breakdown by Executor
+- executor:claude — <N> stories (<points> points)
+- executor:human — <N> stories (<points> points)
+- executor:cowork — <N> stories (<points> points)
+
+### Next Steps
+1. Review stories in <backlog-path>/
+2. Adjust priorities, executors, or points by editing frontmatter
+3. Note: Sprint planning, status tracking, and orchestration currently
+   require `scaffolding: "github"`. Set that in config.json and run
+   `/project-scaffold` again to push the backlog to GitHub when ready.
+```
+
+**No branches, labels, or GitHub Project are created in local mode.**
+
+---
+
+## Jira Scaffold Procedure
+
+When `scaffolding: "jira"`, use the Jira REST API to create epics, stories,
+and sprints. Refer to `../shared/references/PROVIDERS.md` for all API calls.
+
+### Jira Step 1: Parse the PRD
+
+Same as Local Step 1 / GitHub Step 1.
+
+### Jira Step 2: Ensure Project Exists
+
+Read `jira.project_key` from `../shared/config.json`.
+
+**If the key is empty or not set**, create the project:
+
+```bash
+# Get the current user's account ID for project lead
+ACCOUNT_ID=$(curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+  "$JIRA_SITE/rest/api/3/myself" | jq -r '.accountId')
+
+# Derive a project key from the PRD project name (uppercase, max 10 chars)
+PROJECT_KEY=$(echo "<Project Name>" | tr '[:lower:]' '[:upper:]' | tr -cd 'A-Z' | head -c 10)
+
+# Create a Scrum software project
+curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -X POST "$JIRA_SITE/rest/api/3/project" \
+  -d '{
+    "key": "'$PROJECT_KEY'",
+    "name": "<Project Name>",
+    "projectTypeKey": "software",
+    "projectTemplateKey": "com.pyxis.greenhopper.jira:gh-scrum-template",
+    "leadAccountId": "'$ACCOUNT_ID'"
+  }'
+```
+
+After creation, save the key back to `../shared/config.json` under
+`jira.project_key` so subsequent skills don't need to create it again.
+
+**If the key is set**, verify the project exists and check for existing epics:
+
+```bash
+curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+  "$JIRA_SITE/rest/api/3/search?jql=project=<PROJECT_KEY>+AND+issuetype=Epic+AND+status!=Done&fields=summary,status"
+```
+
+If epics exist, present options to add to existing or create new (same UX as
+GitHub mode).
+
+### Jira Step 3: Create Epics
+
+Create an Epic issue for each epic in the PRD. Capture the epic key returned.
+
+### Jira Step 4: Create Stories
+
+Create Story issues linked to their parent epic. Apply labels for executor,
+priority, and persona. Set story points via the appropriate custom field.
+
+Note: Discover the epic link field ID and story points field ID at runtime:
+```bash
+curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" "$JIRA_SITE/rest/api/3/field" \
+  | jq '.[] | select(.name=="Epic Link" or .name=="Story Points")'
+```
+
+### Jira Step 5: Create Sprint
+
+```bash
+# Find the Scrum board for this project
+BOARD_ID=$(curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+  "$JIRA_SITE/rest/agile/1.0/board?projectKeyOrId=<PROJECT_KEY>" \
+  | jq '.values[] | select(.type=="scrum") | .id')
+```
+
+If a Scrum board exists, use it. If the project was just created with the
+Scrum template, the board is created automatically.
+
+Create the first sprint on the board:
+
+```bash
+curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -X POST "$JIRA_SITE/rest/agile/1.0/sprint" \
+  -d '{
+    "name": "Sprint 1",
+    "originBoardId": '$BOARD_ID',
+    "goal": "<sprint goal from PRD>"
+  }'
+```
+
+### Jira Step 6: Create Branch Structure
+
+Same as GitHub mode — git operations are independent of the issue tracker.
+Create `development` and `release/<epic-slug>` branches.
+
+### Jira Step 7: Generate Summary
+
+Same format as GitHub mode, replacing GitHub-specific links with Jira URLs:
+- Project board: `$JIRA_SITE/jira/software/projects/<KEY>/boards/<id>`
+- Epics: `$JIRA_SITE/browse/<EPIC-KEY>`
+
+---
+
+## Trello Scaffold Procedure
+
+When `scaffolding: "trello"`, use the Trello REST API to create lists (epics),
+cards (stories), and labels. Refer to `../shared/references/PROVIDERS.md` for
+all API calls.
+
+### Trello Step 1: Parse the PRD
+
+Same as Local Step 1 / GitHub Step 1.
+
+### Trello Step 2: Ensure Board Exists
+
+Read `trello.board_id` from `../shared/config.json`.
+
+**If the ID is empty or not set**, create the board:
+
+```bash
+# Create a new board with no default lists (we'll create our own)
+BOARD_ID=$(curl -s -X POST "https://api.trello.com/1/boards?key=$TRELLO_API_KEY&token=$TRELLO_TOKEN" \
+  -d "name=<Project Name>&defaultLists=false" | jq -r '.id')
+```
+
+After creation, save the board ID back to `../shared/config.json` under
+`trello.board_id` so subsequent skills don't need to create it again.
+
+**If the ID is set**, check for existing lists:
+
+```bash
+curl -s "https://api.trello.com/1/boards/<board-id>/lists?key=$TRELLO_API_KEY&token=$TRELLO_TOKEN&filter=open"
+```
+
+If lists exist, present options to add to existing or create new (same UX as
+GitHub mode).
+
+### Trello Step 3: Create Labels
+
+Trello has a fixed color palette. Map priority and executor labels:
+
+```bash
+# Create labels on the board
+curl -s -X POST "https://api.trello.com/1/boards/<board-id>/labels?key=$TRELLO_API_KEY&token=$TRELLO_TOKEN" \
+  -d "name=executor:claude&color=blue"
+curl -s -X POST "https://api.trello.com/1/boards/<board-id>/labels?key=$TRELLO_API_KEY&token=$TRELLO_TOKEN" \
+  -d "name=executor:human&color=yellow"
+curl -s -X POST "https://api.trello.com/1/boards/<board-id>/labels?key=$TRELLO_API_KEY&token=$TRELLO_TOKEN" \
+  -d "name=P0-critical&color=red"
+curl -s -X POST "https://api.trello.com/1/boards/<board-id>/labels?key=$TRELLO_API_KEY&token=$TRELLO_TOKEN" \
+  -d "name=P1-high&color=orange"
+# ... etc
+```
+
+### Trello Step 4: Create Epic Lists
+
+Create one list per epic. Position Backlog and Done lists at the edges:
+
+```bash
+curl -s -X POST "https://api.trello.com/1/lists?key=$TRELLO_API_KEY&token=$TRELLO_TOKEN" \
+  -d "name=<Epic Name>&idBoard=<board-id>&pos=bottom"
+```
+
+### Trello Step 5: Create Story Cards
+
+Create a card per story in the appropriate epic list:
+
+```bash
+curl -s -X POST "https://api.trello.com/1/cards?key=$TRELLO_API_KEY&token=$TRELLO_TOKEN" \
+  -d "name=<title>&desc=<body with acceptance criteria>&idList=<epic-list-id>&idLabels=<label-ids>"
+```
+
+Story points: If custom fields power-up is enabled, set via:
+```bash
+curl -s -X PUT "https://api.trello.com/1/cards/<card-id>/customField/<field-id>/item?key=$TRELLO_API_KEY&token=$TRELLO_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"value":{"number":"<points>"}}'
+```
+
+Otherwise, prefix the card title: `[5] <Story title>`.
+
+### Trello Step 6: Create Branch Structure
+
+Same as GitHub mode — git operations are independent of the issue tracker.
+
+### Trello Step 7: Generate Summary
+
+Same format as GitHub mode, replacing links with Trello URLs.
+
+**Trello limitations note:** Trello has no native sprints, dependencies, or
+milestone progress tracking. These are managed via list naming conventions
+and card descriptions. For full sprint lifecycle support, consider GitHub or
+Jira mode.
+
+---
+
+## GitHub Scaffold Procedure
 
 Execute these steps in order:
 
@@ -109,6 +464,11 @@ gh label create "P0-critical" --color "b60205" --repo <owner/repo>
 gh label create "P1-high" --color "d93f0b" --repo <owner/repo>
 gh label create "P2-medium" --color "fbca04" --repo <owner/repo>
 gh label create "P3-low" --color "0e8a16" --repo <owner/repo>
+
+# Persona labels
+gh label create "persona:ops" --color "1D76DB" --description "Ops/infra posture — idempotency, rollback, least privilege" --repo <owner/repo> 2>/dev/null
+gh label create "persona:research" --color "D4C5F9" --description "Research posture — produce a document, not code" --repo <owner/repo> 2>/dev/null
+gh label create "source:review" --color "BFDADC" --description "Issue created from automated review findings" --repo <owner/repo> 2>/dev/null
 ```
 
 ### Step 3: Create Epics (Milestones + Labels)

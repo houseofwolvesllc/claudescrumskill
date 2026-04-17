@@ -9,16 +9,128 @@ Close out a sprint: summarize work, handle incomplete stories, open the release 
 
 ## Before You Start
 
-1. Read `../project-scaffold/references/CONVENTIONS.md` for project management standards.
-2. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in GitHub API commands and code — never in communication with the user.
-3. Confirm the `gh` CLI is authenticated.
+1. Read `../shared/references/CONVENTIONS.md` for project management standards.
+2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` value (default: `.claude-scrum-skill/backlog`).
+3. Read `../shared/references/PROVIDERS.md` for provider-specific API commands when operating in remote mode.
+4. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in API commands and code — never in communication with the user.
+5. **If `scaffolding: "github"`:** Confirm the `gh` CLI is authenticated.
+6. **If `scaffolding: "jira"`:** Verify `JIRA_SITE`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` env vars are set.
+7. **If `scaffolding: "trello"`:** Verify `TRELLO_API_KEY` and `TRELLO_TOKEN` env vars are set.
+8. **If `scaffolding: "local"`:** Skip authentication. Sprint data is in local files.
 
 ## Input
 
-`$ARGUMENTS` should be the repo identifier and optionally the project number.
-If not provided, detect from the current git remote or ask the user.
+**GitHub mode:** `$ARGUMENTS` should be the repo identifier and optionally the project number. If not provided, detect from the current git remote or ask the user.
 
-## Release Procedure
+**Jira/Trello mode:** `$ARGUMENTS` is ignored. Project key or board ID is read from config.json. Use the provider-specific API commands from PROVIDERS.md to update story status and close sprints — following the same release logic as GitHub mode. PRs are still created via `gh` if the git host is GitHub, otherwise direct git merges (see PROVIDERS.md, PR / Code Review Operations).
+
+**Local mode:** `$ARGUMENTS` is ignored. Sprint data is read from the configured backlog path.
+
+---
+
+## Local Release Procedure
+
+When `scaffolding: "local"`, release sprints by updating local backlog files
+and performing git operations directly (no PRs, no GitHub issues).
+
+### Local Step 1: Sprint Inventory
+
+Find the active sprint and read all its stories:
+
+```bash
+# Find active sprint
+grep -l 'status: active' <backlog-path>/sprints/sprint-*.md
+```
+
+Read each story file referenced in the sprint. Categorize as done,
+in-progress, ready, or blocked based on frontmatter `status`.
+
+Also check git branch state:
+```bash
+git fetch origin
+# Story branches merged into release branch
+git branch -r --merged origin/release/<epic-slug> | grep 'origin/story/'
+# Unmerged story branches
+git branch -r --no-merged origin/release/<epic-slug> | grep 'origin/story/'
+```
+
+### Local Step 2: Handle Incomplete Stories
+
+For stories still open:
+
+1. **In Progress:** Ask the user — merge the story branch now, or roll over?
+2. **Ready (never started):** Update frontmatter: add `rolled-over` to labels,
+   set `sprint: null` (will be picked up by next sprint plan).
+3. **Blocked:** Update frontmatter: set `sprint: null`, keep `blocked` status.
+
+### Local Step 3: Merge Release Branch to Development
+
+In local mode, merge directly instead of opening a PR:
+
+```bash
+# Ensure release branch is up to date
+git checkout release/<epic-slug> && git pull
+
+# Merge to development
+git checkout development && git pull
+git merge release/<epic-slug> --no-ff -m "Release: Sprint <N> — <Epic Name>"
+git push origin development
+```
+
+If merge conflicts exist:
+- Attempt automatic resolution
+- If auto-resolution fails, pause and escalate to the user
+
+### Local Step 4: Clean Up Merged Branches
+
+Same git operations as GitHub mode — delete merged story and release branches.
+
+### Local Step 5: Update Local State
+
+Update the sprint file frontmatter:
+```yaml
+status: completed
+velocity_actual: <points completed>
+```
+
+Update completed story files:
+```yaml
+status: done
+```
+
+If all stories in an epic are done, update `_epic.md`:
+```yaml
+status: closed
+```
+
+### Local Step 6: Generate Release Report
+
+Same format as GitHub mode, but without PR links. Instead report:
+
+```
+## Sprint <N> Release Complete (Local Mode)
+
+**Merge:** release/<epic-slug> → development (direct merge)
+**Commit:** <merge commit SHA>
+
+### Sprint Scorecard
+<same as GitHub mode>
+
+### Epic Progress
+<same as GitHub mode>
+
+### Cleanup
+<same as GitHub mode>
+
+### Next Steps
+1. Review changes on development branch
+2. Run `/sprint-plan` to plan Sprint <N+1>
+3. When ready for production, merge development → main manually
+```
+
+---
+
+## GitHub Release Procedure
 
 ### Step 1: Sprint Inventory
 

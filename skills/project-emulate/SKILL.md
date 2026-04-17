@@ -563,7 +563,7 @@ A clean table: Roles as rows, Actions as columns, cells showing ‚úÖ allowed / ‚ù
 
 ## Output
 
-Save the walkthrough results to the project .claude/reports. The output structure:
+Save the walkthrough results to the project .claude-scrum-skill/reports. The output structure:
 
 ```
 emulation-report/

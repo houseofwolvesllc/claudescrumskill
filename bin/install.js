@@ -27,6 +27,7 @@ if (IS_GLOBAL) {
 
 const skills = [
   'project-scaffold',
+  'project-spec',
   'sprint-plan',
   'sprint-status',
   'sprint-release',
@@ -53,6 +54,14 @@ console.log(`\n📋 Installing claude-scrum-skill (${location})...\n`);
 
 fs.mkdirSync(skillsDir, { recursive: true });
 
+// Copy shared references (not a skill, but needed by skills at ../shared/)
+const sharedSrc = path.join(SOURCE_DIR, 'shared');
+const sharedDest = path.join(skillsDir, 'shared');
+if (fs.existsSync(sharedSrc)) {
+  copyRecursive(sharedSrc, sharedDest);
+  console.log('  📁 shared references');
+}
+
 let installed = 0;
 for (const skill of skills) {
   const src = path.join(SOURCE_DIR, skill);
@@ -64,6 +73,28 @@ for (const skill of skills) {
     installed++;
   } else {
     console.log(`  ⚠️  ${skill} — source not found, skipping`);
+  }
+}
+
+// Add .claude-scrum-skill to .gitignore if not already present (local install only)
+if (!IS_GLOBAL) {
+  const projectRoot = path.resolve(skillsDir, '..', '..');
+  const gitignorePath = path.join(projectRoot, '.gitignore');
+  const entry = '.claude-scrum-skill';
+
+  let needsAppend = true;
+  if (fs.existsSync(gitignorePath)) {
+    const contents = fs.readFileSync(gitignorePath, 'utf8');
+    needsAppend = !contents.split('\n').some(line => line.trim() === entry);
+  }
+
+  if (needsAppend) {
+    const prefix = fs.existsSync(gitignorePath)
+      && fs.readFileSync(gitignorePath, 'utf8').length > 0
+      && !fs.readFileSync(gitignorePath, 'utf8').endsWith('\n')
+      ? '\n' : '';
+    fs.appendFileSync(gitignorePath, `${prefix}${entry}\n`);
+    console.log(`\n  📝 Added ${entry} to .gitignore`);
   }
 }
 

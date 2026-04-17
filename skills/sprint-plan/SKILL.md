@@ -9,16 +9,112 @@ Plan and populate the next sprint iteration for an existing GitHub Project.
 
 ## Before You Start
 
-1. Read `../project-scaffold/references/CONVENTIONS.md` for all project management standards. Follow these conventions exactly.
-2. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in GitHub API commands and code — never in communication with the user.
-3. Confirm the `gh` CLI is authenticated by running `gh auth status`.
+1. Read `../shared/references/CONVENTIONS.md` for all project management standards. Follow these conventions exactly.
+2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` value (default: `.claude-scrum-skill/backlog`).
+3. Read `../shared/references/PROVIDERS.md` for provider-specific API commands when operating in remote mode.
+4. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in API commands and code — never in communication with the user.
+5. **If `scaffolding: "github"`:** Confirm the `gh` CLI is authenticated by running `gh auth status`.
+6. **If `scaffolding: "jira"`:** Verify `JIRA_SITE`, `JIRA_EMAIL`, and `JIRA_API_TOKEN` env vars are set.
+7. **If `scaffolding: "trello"`:** Verify `TRELLO_API_KEY` and `TRELLO_TOKEN` env vars are set.
+8. **If `scaffolding: "local"`:** Skip authentication. The backlog is file-based.
 
 ## Input
 
-`$ARGUMENTS` should be the repo identifier and optionally the project number.
-If not provided, detect from the current git remote or ask the user.
+**GitHub mode:** `$ARGUMENTS` should be the repo identifier and optionally the project number. If not provided, detect from the current git remote or ask the user.
 
-## Planning Procedure
+**Jira/Trello mode:** `$ARGUMENTS` is ignored. Project key or board ID is read from config.json. Use the provider-specific API commands from PROVIDERS.md to list stories, create sprints, and assign stories — following the same planning logic as GitHub mode.
+
+**Local mode:** `$ARGUMENTS` is ignored. Stories are read from the configured backlog path.
+
+---
+
+## Local Planning Procedure
+
+When `scaffolding: "local"`, plan sprints by reading and updating local
+backlog files.
+
+### Local Step 1: Assess Current State
+
+Read the backlog directory structure:
+
+```bash
+# List all epics
+ls <backlog-path>/*/_ epic.md
+
+# Read PROJECT.md for sprint history
+cat <backlog-path>/PROJECT.md
+```
+
+For each epic directory, read `_epic.md` (status) and all story files
+(frontmatter). Gather:
+- Stories by status (`backlog`, `ready`, `in-progress`, `done`)
+- Any stories with `rolled-over` in their labels
+- Dependency chains from `blocked_by` fields
+
+### Local Step 2: Calculate Capacity
+
+Same as GitHub mode — ask the user or use defaults (20 points/sprint).
+
+### Local Step 3: Select Stories for Sprint
+
+Same priority order as GitHub mode (rolled-over → unblocked → P0 → P1 → P2 →
+dependencies-first). Read story points and priorities from frontmatter.
+
+Present the proposed sprint to the user for confirmation.
+
+### Persona Assignment
+
+Same as GitHub mode — check for `persona` field in story frontmatter. If
+missing, apply defaults based on labels:
+
+| Story labels | Default persona |
+|---|---|
+| `scope:infra`, `scope:ci`, `scope:deploy`, `scope:migration` | `ops` |
+| `needs:design`, `needs:spike` | `research` |
+| All other stories | `impl` (no change needed) |
+
+Update the story file's frontmatter `persona` field.
+
+### Local Step 4: Assign Sprint
+
+Create a sprint file at `<backlog-path>/sprints/sprint-<N>.md`:
+
+```markdown
+---
+number: <N>
+status: active
+start: <ISO date>
+end: <ISO date>
+velocity_target: <points>
+velocity_actual: null
+---
+
+# Sprint <N>
+
+## Stories
+| File | Title | Executor | Persona | Points | Priority | Status |
+|------|-------|----------|---------|--------|----------|--------|
+| core-api/001-user-auth.md | User auth endpoint | claude | impl | 5 | P1-high | ready |
+...
+```
+
+Update each selected story's frontmatter:
+- Set `sprint: <N>`
+- Set `status: ready` (or `backlog` if dependencies aren't met)
+
+### Local Step 5: Ensure Branch Exists
+
+Same as GitHub mode — create release branches from `development` for each
+active epic. Git operations work identically in local mode.
+
+### Local Step 6: Generate Sprint Kickoff Summary
+
+Same format as GitHub mode, but reference story file paths instead of issue
+numbers.
+
+---
+
+## GitHub Planning Procedure
 
 ### Step 1: Assess Current State
 
@@ -96,6 +192,28 @@ For each story in the sprint:
 - Set the Sprint iteration field to the new sprint
 - Set Status to "Ready" (or "Backlog" if dependencies aren't met yet)
 - Verify labels are correct
+
+### Persona Assignment
+
+For each story assigned to the sprint, check for an existing `persona:*`
+label. If none exists, apply a default based on the story's other labels:
+
+| Story labels | Default persona |
+|---|---|
+| `scope:infra`, `scope:ci`, `scope:deploy`, `scope:migration` | `persona:ops` |
+| `needs:design`, `needs:spike` | `persona:research` |
+| All other stories | No label needed (implicit `impl`) |
+
+Apply the label:
+
+```bash
+# Only if the story doesn't already have a persona:* label
+gh issue edit <number> --repo <owner/repo> --add-label "persona:ops"
+```
+
+This is a default heuristic. Users can override by manually labeling stories
+before planning. The orchestrator reads whatever label is present at
+execution time.
 
 ### Step 5: Ensure Branch Exists
 

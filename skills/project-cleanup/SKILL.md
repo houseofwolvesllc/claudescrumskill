@@ -12,7 +12,7 @@ Ensure the codebase is production-clean: builds without errors or warnings, pass
 ## Before You Start
 
 1. Read the project's `CLAUDE.md` (if it exists) for project-specific rules. **CLAUDE.md overrides are authoritative** — if a project rule conflicts with a best practice listed here, the project rule wins. Record any overrides you find so you can reference them when making decisions.
-2. Read `../project-scaffold/references/CONVENTIONS.md` for project management standards (if applicable).
+2. Read `../shared/references/CONVENTIONS.md` for project management standards (if applicable).
 3. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in GitHub API commands and code — never in communication with the user.
 4. Identify the project's language(s), framework(s), build system, linter, test runner, and coverage tool by reading `package.json`, `tsconfig.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Makefile`, or equivalent config files.
 5. Confirm all required tooling is installed and runnable (`npm`, `npx`, `tsc`, `eslint`, `jest`/`vitest`/`pytest`/`go test`, etc.).
@@ -328,7 +328,7 @@ If `--fix` was active, verify that fixes didn't introduce new problems:
 
 ## Output
 
-Save the cleanup report to `.claude/reports/cleanup-report/`. Create the directory if it doesn't exist.
+Save the cleanup report to `.claude-scrum-skill/reports/cleanup-report/`. Create the directory if it doesn't exist.
 
 ### Report Structure
 
