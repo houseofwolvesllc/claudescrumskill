@@ -40,6 +40,38 @@ The following actions are NEVER authorized:
 
 ---
 
+## Default Operating Mode
+
+`/project-orchestrate` defaults to **fully autonomous execution**. When invoked with a PRD path or repo identifier, run the full lifecycle — Phase 1 (Epic Completion) → Phase 2 (Emulation Hardening) → Phase 3 (Project Cleanup) → Step 16 (ADR Update) → Step 17 (State Cleanup) — end-to-end without pausing for routine confirmation.
+
+### What autonomous means
+
+- **No routine confirmation prompts.** Accept the skill's prescribed default at every decision point: sprint plans, story execution order, branch creation, merges to `development`, branch cleanup. The Standing Authorizations above cover the full set; do not re-ask for them.
+- **All phases run.** Phase 2 (Emulation Hardening) and Phase 3 (Project Cleanup) are **mandatory** quality gates — they execute even when Phase 1 produces a small or clean change set. Skipping them defeats the orchestration's quality model.
+- **State file handling is automatic — never prompt the user.**
+  - `Status: running` → resume from the recorded position.
+  - `Status: paused` → resume from the recorded position. The original pause cause should already be addressed before the user re-invokes; if it isn't, the run will pause again on the same issue and surface it fresh.
+  - `Status: completed` → rename the prior file to `orchestration-state.previous.md` and start a fresh run.
+  - No file → initialize a new state file.
+- **Scaffolding decisions fire per their own trigger logic.** Two-pass mode and design-spike epic injection are governed by `project-scaffold/SKILL.md` → Mode Detection and Design-Spike Epic. The orchestrator does NOT add a separate confirmation prompt on top of those triggers — if the scaffold spec says inject, the orchestrator lets it inject.
+
+### When pausing IS allowed
+
+Only the four genuine safety gates pause the run. These exist because they require human judgment that no default can satisfy:
+
+1. **Unresolvable merge conflict.** Auto-rebase attempted first; if it fails, pause and surface the conflicting files (per Step 5c and Error Handling → Merge Conflicts).
+2. **Critical findings in the review gate.** The `review` persona's recommendation of `block` / `revert` pauses orchestration so the user can decide how to proceed (per Step 5b).
+3. **3rd consecutive hardening run still produces critical/warning findings.** The safety valve at Step 13 — three rounds of automated hardening without convergence suggests the remaining issues need human triage.
+4. **Rate-limit exhaustion.** After exponential-backoff retries fail (per Error Handling → Rate Limiting), pause rather than burn through quota.
+
+All four are infrequent and indicate real problems. None can be defaulted away. Every other pause point in this document — sprint plan confirmation, state file resume confirmation, phase transition confirmation, completion confirmation — is removed by the autonomous default.
+
+### Overriding the default
+
+If the user explicitly requests interactive mode for the current run (e.g., "let me approve each sprint plan", "pause between phases", "stop after Phase 1"), honor that for the current invocation. The skill's default remains autonomous; the override is per-invocation and does not change the default.
+
+---
+
 ## Input
 
 `$ARGUMENTS` can be:
@@ -112,11 +144,12 @@ Orchestration state is persisted to `.claude-scrum-skill/orchestration-state.md`
 
 ### State Operations
 
-**On startup**, check for an existing `.claude-scrum-skill/orchestration-state.md`:
-- If found and `Status: running` → resume from the recorded position
-- If found and `Status: paused` → ask the user whether to resume or restart
-- If found and `Status: completed` → ask the user whether to start a fresh run
-- If not found → initialize a new state file
+**On startup**, check for an existing `.claude-scrum-skill/orchestration-state.md`. The autonomous default handles all four cases without prompting the user — see Default Operating Mode → State file handling for the full decision table. Briefly:
+
+- `Status: running` → resume from the recorded position.
+- `Status: paused` → resume from the recorded position (the pause cause should already be addressed; if not, the run will pause again on the same issue).
+- `Status: completed` → rename to `orchestration-state.previous.md` and start fresh.
+- No file → initialize a new state file.
 
 **During execution**, update the state file:
 - After every sprint plan, story completion, release, and phase transition
@@ -493,6 +526,8 @@ Transitioning to Phase 2 — Emulation Hardening.
 
 Validate the **entire codebase** through emulation, fix discovered issues, and repeat until clean. This phase always covers the full project regardless of whether Phase 1 was PRD-scoped — new code must integrate cleanly with the existing codebase.
 
+**Phase 2 is mandatory.** Do not skip it under any circumstance, even when Phase 1 produced a small or clean change set. The emulation pass is the quality gate that catches integration drift, layer contract mismatches, and cross-story inconsistency that per-story review cannot. Skipping it defeats the orchestration's quality model. See Default Operating Mode.
+
 ### Step 8: Run Emulation
 
 Invoke the project emulation skill:
@@ -603,6 +638,8 @@ Options:
 ## Phase 3 — Project Cleanup
 
 After emulation hardening is clean (or accepted), run a final mechanical hygiene pass to ensure the codebase builds, lints, and tests cleanly.
+
+**Phase 3 is mandatory.** Like Phase 2, it always runs at the tail of every orchestration even when the codebase appears clean. For projects with no traditional toolchain (e.g., a markdown skill suite), `project-cleanup` reports SKIP for the non-applicable phases — that is the correct outcome, not a reason to omit the phase. See Default Operating Mode.
 
 ### Step 14: Run Project Cleanup
 
