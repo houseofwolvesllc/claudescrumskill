@@ -1,0 +1,54 @@
+name: Publish to npm
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write   # required to push the version tag
+  id-token: write   # required for npm provenance attestations
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # need previous commit to diff package.json version
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Detect version change
+        id: version
+        run: |
+          set -euo pipefail
+          CURR=$(node -p "require('./package.json').version")
+          PREV=$(git show HEAD~1:package.json 2>/dev/null | node -e "let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>console.log(JSON.parse(d).version))" 2>/dev/null || echo "none")
+          echo "Previous version: $PREV"
+          echo "Current version:  $CURR"
+          if [ "$PREV" != "$CURR" ]; then
+            echo "publish=true"  >> "$GITHUB_OUTPUT"
+            echo "version=$CURR" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to npm
+        if: steps.version.outputs.publish == 'true'
+        run: npm publish --provenance
+        # Auth is handled via npm Trusted Publishers (OIDC) — no NPM_TOKEN
+        # secret needed. The id-token: write permission above lets npm verify
+        # this workflow is the configured trusted publisher for the package.
+        # Configure at: npmjs.com → package → Settings → Trusted Publishers.
+
+      - name: Create and push git tag
+        if: steps.version.outputs.publish == 'true'
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
