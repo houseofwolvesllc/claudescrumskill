@@ -1,7 +1,7 @@
 ---
 title: Create synthetic PRD fixtures and verify end-to-end behavior
 epic: documentation-verification
-status: backlog
+status: done
 executor: claude
 priority: P2-medium
 points: 3
@@ -10,13 +10,12 @@ labels:
   - executor:claude
   - P2-medium
   - epic:documentation-verification
-  - ready-for-work
 persona: impl
 blocked_by:
   - documentation-verification/001
   - documentation-verification/002
 blocks: []
-sprint: null
+sprint: 4
 ---
 
 ## Objective

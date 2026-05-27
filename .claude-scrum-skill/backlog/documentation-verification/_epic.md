@@ -1,7 +1,7 @@
 ---
 title: Documentation & Verification
 slug: documentation-verification
-status: open
+status: closed
 created: 2026-05-27T07:19:32Z
 ---
 
