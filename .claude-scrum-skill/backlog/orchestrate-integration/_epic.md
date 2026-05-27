@@ -1,7 +1,7 @@
 ---
 title: Orchestrate Integration
 slug: orchestrate-integration
-status: open
+status: closed
 created: 2026-05-27T07:19:32Z
 ---
 
