@@ -1,7 +1,7 @@
 ---
 title: Update project-orchestrate Step 3 prompt, Step 16 ADR numbering, Step 2 gate
 epic: orchestrate-integration
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 5
@@ -10,7 +10,6 @@ labels:
   - executor:claude
   - P1-high
   - epic:orchestrate-integration
-  - ready-for-work
 persona: impl
 blocked_by:
   - foundation/002
@@ -19,7 +18,7 @@ blocked_by:
 blocks:
   - documentation-verification/001
   - documentation-verification/002
-sprint: null
+sprint: 3
 ---
 
 ## Objective
