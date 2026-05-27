@@ -10,7 +10,10 @@ Scaffold a complete GitHub Project from one or more PRD or spec documents, or ad
 ## Before You Start
 
 1. Read `../shared/references/CONVENTIONS.md` for all project management standards including label taxonomy, branch strategy, issue templates, custom fields, and executor assignment guidelines. Follow these conventions exactly.
-2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` value (default: `.claude-scrum-skill/backlog`).
+2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` value (default: `.claude-scrum-skill/backlog`). Also read these scaffolding-control keys (fall back to defaults silently if missing):
+   - `scaffold.two_pass_threshold_words` (default `5000`) — PRD word count above which two-pass mode auto-triggers. See Mode Detection.
+   - `scaffold.design_spike_enabled` (default `true`) — global enable switch for the design-spike pre-epic. See Design-Spike Epic.
+   - `paths.context` (default `.claude-scrum-skill/context`) — where per-epic CONTEXT.md files written by the design-spike epic live.
 3. Read `../shared/references/PROVIDERS.md` for provider-specific API commands when operating in remote mode (GitHub, Jira, or Trello).
 4. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in API commands and code — never in communication with the user.
 5. **If `scaffolding: "github"`:** Confirm the `gh` CLI is authenticated by running `gh auth status`. Identify the target repository. If the user doesn't specify, ask which repo to use.
@@ -23,6 +26,39 @@ Scaffold a complete GitHub Project from one or more PRD or spec documents, or ad
 The user provides `$ARGUMENTS` which should be one or more file paths to PRD or spec documents (markdown, text, or similar). If no arguments are provided, ask the user to specify the PRD location.
 
 Read all provided documents thoroughly before proceeding.
+
+### PRD Frontmatter Overrides
+
+PRD authors can preempt the auto-detected scaffolding behavior via YAML
+frontmatter at the top of the PRD document:
+
+```yaml
+---
+title: My Project
+scaffold_mode: two-pass     # force two-pass even for a small PRD
+design_spike: false         # suppress the design-spike epic even when triggered
+---
+```
+
+Allowed values:
+
+- `scaffold_mode`: `single-pass` | `two-pass` (omit to use the word-count
+  heuristic in Mode Detection)
+- `design_spike`: `true` | `false` (omit to use the auto-injection rules
+  in Design-Spike Epic)
+
+### CLI Flags
+
+Equivalent flags can be passed alongside the PRD path:
+
+- `--mode single-pass` / `--mode two-pass` — overrides any frontmatter or
+  word-count heuristic for the scaffolding mode.
+- `--design-spike` / `--no-design-spike` — overrides any frontmatter or
+  auto-injection rule for the design-spike epic.
+
+Trigger precedence (highest first): CLI flag → PRD frontmatter → config /
+heuristic. Whatever wins is announced before scaffolding begins so the
+user understands why a given path was taken.
 
 ## Mode Detection
 
