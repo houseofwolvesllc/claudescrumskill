@@ -1,7 +1,7 @@
 ---
 title: Wire two-pass into per-backend procedures and add slug deduplication
 epic: two-pass-scaffolding
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 5
@@ -10,13 +10,12 @@ labels:
   - executor:claude
   - P1-high
   - epic:two-pass-scaffolding
-  - ready-for-work
 persona: impl
 blocked_by:
   - two-pass-scaffolding/001
 blocks:
   - design-spike-epic/001
-sprint: null
+sprint: 2
 ---
 
 ## Objective

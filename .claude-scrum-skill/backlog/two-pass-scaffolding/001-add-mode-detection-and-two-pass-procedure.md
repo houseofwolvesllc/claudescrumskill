@@ -1,7 +1,7 @@
 ---
 title: Add Mode Detection step and Two-Pass Procedure section to project-scaffold
 epic: two-pass-scaffolding
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 8
@@ -10,7 +10,6 @@ labels:
   - executor:claude
   - P1-high
   - epic:two-pass-scaffolding
-  - ready-for-work
 persona: impl
 blocked_by:
   - foundation/001
@@ -18,7 +17,7 @@ blocked_by:
 blocks:
   - two-pass-scaffolding/002
   - two-pass-scaffolding/003
-sprint: null
+sprint: 2
 ---
 
 ## Objective
