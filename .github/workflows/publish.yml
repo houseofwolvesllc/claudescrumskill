@@ -3,10 +3,11 @@ name: Publish to npm
 on:
   push:
     branches: [main]
+  workflow_dispatch:   # allow manual re-runs after fixing config issues
 
 permissions:
   contents: write   # required to push the version tag
-  id-token: write   # required for npm provenance attestations
+  id-token: write   # required for npm provenance + Trusted Publishers OIDC
 
 jobs:
   publish:
@@ -14,40 +15,57 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2   # need previous commit to diff package.json version
+          fetch-depth: 0   # need full history for tag operations
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'   # ships with npm 11.x; Trusted Publishers publish auth requires npm >= 11.5.1
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Detect version change
+      - name: Show toolchain versions
+        run: |
+          echo "node: $(node --version)"
+          echo "npm:  $(npm --version)"
+
+      - name: Detect if current version is unpublished
         id: version
         run: |
           set -euo pipefail
+          PKG_NAME=$(node -p "require('./package.json').name")
           CURR=$(node -p "require('./package.json').version")
-          PREV=$(git show HEAD~1:package.json 2>/dev/null | node -e "let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>console.log(JSON.parse(d).version))" 2>/dev/null || echo "none")
-          echo "Previous version: $PREV"
-          echo "Current version:  $CURR"
-          if [ "$PREV" != "$CURR" ]; then
-            echo "publish=true"  >> "$GITHUB_OUTPUT"
-            echo "version=$CURR" >> "$GITHUB_OUTPUT"
-          else
+          PUBLISHED=$(npm view "${PKG_NAME}@${CURR}" version 2>/dev/null || echo "")
+          echo "Package:           $PKG_NAME"
+          echo "Local version:     $CURR"
+          echo "Published version: ${PUBLISHED:-<not yet published>}"
+          if [ "$PUBLISHED" = "$CURR" ]; then
             echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Version $CURR already on npm — skipping publish."
+          else
+            echo "publish=true"   >> "$GITHUB_OUTPUT"
+            echo "version=$CURR"  >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish to npm
         if: steps.version.outputs.publish == 'true'
         run: npm publish --provenance
-        # Auth is handled via npm Trusted Publishers (OIDC) — no NPM_TOKEN
-        # secret needed. The id-token: write permission above lets npm verify
-        # this workflow is the configured trusted publisher for the package.
+        # Auth via npm Trusted Publishers (OIDC) — no NPM_TOKEN secret.
+        # The id-token: write permission above lets npm verify this workflow
+        # is the configured trusted publisher for the package.
         # Configure at: npmjs.com → package → Settings → Trusted Publishers.
 
       - name: Create and push git tag
         if: steps.version.outputs.publish == 'true'
         run: |
           TAG="v${{ steps.version.outputs.version }}"
+          # Skip if the tag already exists (e.g., manual rerun of a previously-tagged version).
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists locally — skipping creation."
+            exit 0
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists on origin — skipping push."
+            exit 0
+          fi
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG"
