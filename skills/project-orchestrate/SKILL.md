@@ -11,8 +11,8 @@ Fully autonomous project lifecycle driver. Plans sprints, executes stories via p
 
 ## Before You Start
 
-1. Read `../shared/references/CONVENTIONS.md` for all project management standards. Follow these conventions exactly.
-2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` value. Read `../shared/references/PROVIDERS.md` for provider-specific API commands when using a remote provider.
+1. Read `../shared/references/CONVENTIONS.md` for all project management standards. Follow these conventions exactly. Pay particular attention to **Epic Structure → Design-Spike Epic** — orchestration honors the design-spike epic's gating, so implementation work in a scoped run does not begin until the design-spike epic completes.
+2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` and `paths.context` values (`paths.context` defaults to `.claude-scrum-skill/context` and is where Step 3 subagents look for per-epic CONTEXT.md files). Read `../shared/references/PROVIDERS.md` for provider-specific API commands when using a remote provider.
 3. Read the project's `CLAUDE.md` (if it exists) for project-specific rules. **All subagents you spawn must also read and follow `CLAUDE.md`** — include this instruction explicitly in every subagent prompt.
 4. Read `../shared/references/PERSONAS.md` for role preambles. When spawning
    subagents, select the persona matching each story's `persona:*` label (GitHub mode)
@@ -197,6 +197,14 @@ Invoke the `/sprint-plan` skill:
 
 **If PRD-scoped:** Ensure the sprint plan only pulls from the scoped stories (recorded in the state file). If `/sprint-plan` proposes stories outside the scope, exclude them — they belong to other work and should not be mixed into this orchestration run.
 
+**Blocked-by gate:** Before selecting stories for the sprint, exclude any
+story whose `blocked_by` list contains an open (not yet `done`) story. This
+naturally gates implementation epics on the design-spike epic when one
+exists: implementation stories list the design-spike CONTEXT.md story as a
+blocker, so they cannot enter a sprint until that story completes. The
+existing dependency mechanism in `/sprint-plan` already honors this; this
+note is an explicit affirmation, not a new requirement.
+
 Since this is autonomous mode, accept the default sprint plan without waiting for user confirmation — the skill's proposed sprint based on priority ordering and velocity target is the plan.
 
 After planning completes, update the state file with the sprint stories and their dependency map.
@@ -230,6 +238,14 @@ You are executing story #<number> for repo <owner/repo>.
 **IMPORTANT:** First read the project's CLAUDE.md file if it exists, and
 follow all instructions in it. CLAUDE.md is authoritative for stack,
 patterns, and style — it overrides any general guidance in this preamble.
+
+**IMPORTANT:** Before writing any code, if `<paths.context>/<epic-slug>/CONTEXT.md`
+exists, read it in full. Treat its Naming Conventions, File Layout, Shared
+Types & Interfaces, Patterns to Follow, and Patterns to Avoid sections as
+binding for this epic — they override generic conventions in CLAUDE.md when
+in conflict, and you should follow them even when CLAUDE.md is silent. The
+`<paths.context>` and `<epic-slug>` values are substituted from the resolved
+config and the story's epic at spawn time.
 
 **Story:** <title>
 **Acceptance criteria:** <from issue body or story file>
@@ -671,15 +687,20 @@ Read the ADR output path from `../shared/config.json` (key: `paths.adr`,
 default: `.claude-scrum-skill/adr`).
 
 1. Read all existing ADRs in the configured ADR directory to understand what's
-   already documented and the numbering/format convention in use.
+   already documented and the numbering/format convention in use. Compute
+   the next sequential ADR number as `max(existing_numbers) + 1`. This
+   shared numbering pool applies regardless of whether prior ADRs were
+   created by a design-spike epic in this run, by a previous orchestration
+   run, or hand-authored — they all share one sequence.
 2. Review the epics completed, hardening fixes applied, and any significant
    technical choices made during orchestration (e.g., new libraries adopted,
    patterns introduced, infrastructure changes, security model decisions).
 3. For each decision that is **non-obvious, hard to reverse, or would
    surprise a future contributor**, create a new ADR following the existing
    format and numbering sequence.
-4. Skip decisions that are already covered by an existing ADR or that are
-   trivial/self-evident from the code.
+4. Skip decisions that are already covered by an existing ADR (including
+   any ADR produced by a design-spike epic earlier in this run) or that
+   are trivial/self-evident from the code.
 
 Print a summary:
 
