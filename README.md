@@ -60,7 +60,23 @@ PRD (optional)  -->  /project-orchestrate
 
 ## Installation
 
-### Claude Code Plugin (recommended)
+### npm (recommended)
+
+```bash
+# Global install — available in all projects
+npm install -g @houseofwolvesllc/claude-scrum-skill
+
+# Local install — this project only
+npm install @houseofwolvesllc/claude-scrum-skill
+```
+
+Global install copies skills to `~/.claude/skills/`. Local install copies them to `<project>/.claude/skills/` and adds `.claude-scrum-skill` to your `.gitignore`.
+
+Skills surface in Claude Code with their plain names: `/project-scaffold`, `/project-orchestrate`, `/sprint-plan`, etc.
+
+> **Heads-up on re-installs:** the postinstall script overwrites every file under `<install-dir>/skills/` with the package's shipped version. If you've customized `<install-dir>/skills/shared/config.json` (e.g., changed `paths.specs` or `paths.adr`), back it up before re-running `npm install` and restore your values afterward. Skill files outside the shipped set are left alone — only files that exist in the package are overwritten.
+
+### Claude Code Plugin (alternative)
 
 ```
 /plugin marketplace add houseofwolvesllc/claudescrumskill
@@ -73,21 +89,13 @@ This installs all skills as a native Claude Code plugin with automatic updates. 
 /plugin marketplace update
 ```
 
-### npm
-
-```bash
-# Global install — available in all projects
-npm install -g @houseofwolvesllc/claude-scrum-skill
-
-# Local install — this project only
-npm install @houseofwolvesllc/claude-scrum-skill
-```
-
-Global install copies skills to `~/.claude/skills/`. Local install copies them to `<project>/.claude/skills/` and adds `.claude-scrum-skill` to your `.gitignore`.
+> **Important difference from npm install:** Claude Code namespaces plugin-installed skills with the marketplace identifier to prevent collisions between plugins. Skills surface as `/@houseofwolvesllc/project-scaffold`, `/@houseofwolvesllc/project-orchestrate`, etc. — **not** as `/project-scaffold` and `/project-orchestrate`. If you prefer the plain names, use the npm install path above; if you prefer the marketplace UI for discovery and updates, use this path and live with the namespace.
 
 ### Manual
 
 Clone the repo and copy the `skills/` contents into `~/.claude/skills/` (global) or `<project>/.claude/skills/` (per-project). All skill directories must be siblings under the same parent, with `shared/` alongside them — skills reference `../shared/references/` via relative paths.
+
+The manual path produces the same plain-name UX as npm install (both bypass the plugin layer's namespacing), but you forfeit automatic updates.
 
 > **Note:** After installing, restart Claude Code for the skills to become available.
 
