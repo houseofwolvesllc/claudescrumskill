@@ -42,33 +42,19 @@ The following actions are NEVER authorized:
 
 ## Default Operating Mode
 
-`/project-orchestrate` defaults to **fully autonomous execution**. When invoked with a PRD path or repo identifier, run the full lifecycle — Phase 1 (Epic Completion) → Phase 2 (Emulation Hardening) → Phase 3 (Project Cleanup) → Step 16 (ADR Update) → Step 17 (State Cleanup) — end-to-end without pausing for routine confirmation.
+Run autonomously on invocation. Standing Authorizations cover the normal lifecycle — proceed under them without asking.
 
-### What autonomous means
+**No pre-flight audits.** Don't list concerns and present a menu of options before starting. Pick the spec's literal intent and go. Surface defects in execution output as you encounter them, not as pre-execution gates. Asking "which option do you want?" before executing is itself a violation of autonomous mode.
 
-- **No routine confirmation prompts.** Accept the skill's prescribed default at every decision point: sprint plans, story execution order, branch creation, merges to `development`, branch cleanup. The Standing Authorizations above cover the full set; do not re-ask for them.
-- **All phases run.** Phase 2 (Emulation Hardening) and Phase 3 (Project Cleanup) are **mandatory** quality gates — they execute even when Phase 1 produces a small or clean change set. Skipping them defeats the orchestration's quality model.
-- **State file handling is automatic — never prompt the user.**
-  - `Status: running` → resume from the recorded position.
-  - `Status: paused` → resume from the recorded position. The original pause cause should already be addressed before the user re-invokes; if it isn't, the run will pause again on the same issue and surface it fresh.
-  - `Status: completed` → rename the prior file to `orchestration-state.previous.md` and start a fresh run.
-  - No file → initialize a new state file.
-- **Scaffolding decisions fire per their own trigger logic.** Two-pass mode and design-spike epic injection are governed by `project-scaffold/SKILL.md` → Mode Detection and Design-Spike Epic. The orchestrator does NOT add a separate confirmation prompt on top of those triggers — if the scaffold spec says inject, the orchestrator lets it inject.
+**Phase 2 (Emulation) and Phase 3 (Cleanup) always run.** Mandatory on every orchestration regardless of how small or clean the Phase 1 change set looks. For projects with no traditional toolchain (e.g., a markdown-only repo), Phase 3 reports SKIP/PASS — that is the correct outcome, not a reason to omit the phase.
 
-### When pausing IS allowed
+**State file is automatic.** `Status: running` or `paused` → resume from the recorded position. `Status: completed` → rename to `orchestration-state.previous.md` and start a fresh run. Missing → initialize a new file. Never prompt.
 
-Only the four genuine safety gates pause the run. These exist because they require human judgment that no default can satisfy:
+**Scaffolding decisions fire per their own trigger logic.** Two-pass mode and design-spike epic injection live in `project-scaffold/SKILL.md` (Mode Detection, Design-Spike Epic). The orchestrator does NOT add a separate confirmation prompt on top of those triggers.
 
-1. **Unresolvable merge conflict.** Auto-rebase attempted first; if it fails, pause and surface the conflicting files (per Step 5c and Error Handling → Merge Conflicts).
-2. **Critical findings in the review gate.** The `review` persona's recommendation of `block` / `revert` pauses orchestration so the user can decide how to proceed (per Step 5b).
-3. **3rd consecutive hardening run still produces critical/warning findings.** The safety valve at Step 13 — three rounds of automated hardening without convergence suggests the remaining issues need human triage.
-4. **Rate-limit exhaustion.** After exponential-backoff retries fail (per Error Handling → Rate Limiting), pause rather than burn through quota.
+**Pause only on four real safety issues:** unresolvable merge conflict (Step 5c, Error Handling → Merge Conflicts); critical review/emulation finding (Step 5b, `block`/`revert` recommendation); 3rd consecutive hardening run still dirty (Step 13 safety valve); rate-limit exhaustion (Error Handling → Rate Limiting). Nothing else.
 
-All four are infrequent and indicate real problems. None can be defaulted away. Every other pause point in this document — sprint plan confirmation, state file resume confirmation, phase transition confirmation, completion confirmation — is removed by the autonomous default.
-
-### Overriding the default
-
-If the user explicitly requests interactive mode for the current run (e.g., "let me approve each sprint plan", "pause between phases", "stop after Phase 1"), honor that for the current invocation. The skill's default remains autonomous; the override is per-invocation and does not change the default.
+**Per-invocation overrides are honored** when the user explicitly asks for interactive mode for the current run ("pause between phases", "let me approve each sprint", etc.). The default remains autonomous.
 
 ---
 
