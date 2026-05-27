@@ -1,7 +1,7 @@
 ---
 title: Add Design-Spike Epic section and skeleton augmentation to project-scaffold
 epic: design-spike-epic
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 5
@@ -10,7 +10,6 @@ labels:
   - executor:claude
   - P1-high
   - epic:design-spike-epic
-  - ready-for-work
 persona: impl
 blocked_by:
   - foundation/002
@@ -19,7 +18,7 @@ blocked_by:
   - two-pass-scaffolding/003
 blocks:
   - design-spike-epic/002
-sprint: null
+sprint: 3
 ---
 
 ## Objective

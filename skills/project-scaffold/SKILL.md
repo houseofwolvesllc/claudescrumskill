@@ -204,6 +204,111 @@ Pass 2 failure.
    needs-context) in the skill's user-facing output so the user knows what
    landed cleanly versus what needs hand-completion.
 
+## Design-Spike Epic
+
+A **design-spike epic** is a research-driven pre-epic that produces written
+design artifacts (an ADR + per-implementation-epic CONTEXT.md files) before
+any implementation work begins. It auto-injects at position 0 of the
+scaffold when triggered, giving every subsequent implementation subagent a
+shared anchor for naming, file layout, types, and patterns. See
+CONVENTIONS.md → Epic Structure → Design-Spike Epic for the broader rationale.
+
+### Trigger Evaluation (in order, first match wins)
+
+1. **PRD frontmatter override:**
+   - `design_spike: false` → suppress the design-spike epic.
+   - `design_spike: true` → force it.
+2. **CLI flag:**
+   - `--no-design-spike` → suppress.
+   - `--design-spike` → force.
+3. **Global enable switch:**
+   - Read `scaffold.design_spike_enabled` from `../shared/config.json`
+     (default `true`; missing key falls back to default silently).
+   - If `false` globally, skip the design-spike regardless of other
+     signals except an explicit override above.
+4. **Auto-trigger:**
+   - Two-pass mode was selected AND Pass 1 produced more than one
+     implementation epic → auto-inject.
+
+If none of the above fire, skip the design-spike epic.
+
+### Idempotency Check
+
+Before injecting, check whether a design-spike epic already exists in the
+target project. Detection is by canonical signal (label/field), not by
+title — the title is configurable but the signal is fixed.
+
+- **Local mode:** Scan `<paths.backlog>/*/[_]epic.md` frontmatter for
+  `epic_type: design-spike`.
+- **GitHub mode:** Query open milestones whose issues carry the
+  `type:design-spike` label.
+- **Jira mode:** Query Epic-type issues labeled `type:design-spike`.
+- **Trello mode:** Query lists whose cards carry the `type:design-spike`
+  label.
+
+If an existing design-spike epic is found, skip injection and reuse it
+for `blocked_by` references on the new implementation stories.
+
+### Skeleton Augmentation
+
+When the design-spike epic is to be injected, modify the skeleton produced
+by Pass 1 (or, in single-pass mode, the parsed epic list) before per-epic
+elaboration runs:
+
+1. **Prepend a new epic at position 0** with:
+   - Default title: `Architecture & Design` (overridable; not load-bearing).
+   - Detection signal: label `type:design-spike` (remote backends) and
+     `epic_type: design-spike` in `_epic.md` frontmatter (local mode).
+   - Description sourced from the project description + the union of all
+     implementation epics' `shared_design_concerns` (from the Pass 1
+     manifest).
+2. **Generate the design-spike stories** to be elaborated by a Pass 2
+   subagent with `persona: research`:
+   - One **ADR-authoring story** producing the project's foundational ADR
+     at `<paths.adr>/NNNN-<slug>.md`. The ADR number is the next available
+     in the existing ADR sequence (see `/project-orchestrate` Step 16 for
+     the shared numbering pool).
+   - One **CONTEXT.md-authoring story per implementation epic**, each
+     producing `<paths.context>/<epic-slug>/CONTEXT.md` from the template
+     at `shared/templates/CONTEXT-template.md`. The story body lists the
+     `shared_design_concerns` for that epic so the research subagent has
+     concrete inputs.
+3. **Wire `blocked_by` references** on every implementation story:
+   - Each implementation story gets `blocked_by` references to the
+     design-spike story that produces its epic's CONTEXT.md.
+   - Sprint planning then naturally excludes implementation stories until
+     their CONTEXT.md exists — no additional gate logic required.
+
+### Artifact Storage
+
+ADR and CONTEXT.md files are committed to the `development` branch via
+the filesystem in ALL four backends. Git is the universal substrate; this
+keeps the artifact location uniform regardless of which backend the
+backlog lives in.
+
+- ADR location: `<paths.adr>/NNNN-<slug>.md`
+- CONTEXT.md location: `<paths.context>/<epic-slug>/CONTEXT.md`
+
+Remote backends (GitHub, Jira, Trello) MAY additionally surface links to
+these files via milestone/epic descriptions for discoverability — but the
+committed files are the single source of truth. If the description link
+becomes stale (e.g., file renamed), the filesystem path wins.
+
+### Auto-Injection of References
+
+When the design-spike epic is part of the scaffold, every implementation
+story's Technical Context section receives an appended line referencing
+the artifacts that will be produced:
+
+```
+See [<paths.context>/<epic-slug>/CONTEXT.md] and [<paths.adr>/NNNN-<slug>.md] for shared architectural decisions.
+```
+
+The paths use the resolved `paths.context` and `paths.adr` config values
+(not hardcoded strings) and the ADR number assigned during skeleton
+augmentation. Auto-injection happens during Story Assembly, after Pass 2
+produces stories but before per-backend creation runs.
+
 ## Scaffold Procedure
 
 Read `../shared/config.json` to determine mode. If `scaffolding` is `"local"`,
