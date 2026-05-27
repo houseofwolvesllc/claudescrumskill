@@ -58,6 +58,7 @@ Create these views on every project board:
 - `type:spike` — Research/exploration task with defined timebox
 - `type:infra` — Infrastructure, CI/CD, tooling, DevOps
 - `type:chore` — Maintenance, cleanup, refactoring, documentation
+- `type:design-spike` — Research-driven epic that produces design artifacts (ADR + per-implementation-epic CONTEXT.md files) consumed by implementation epics. Auto-injected by `/project-scaffold` for large/multi-epic PRDs; see Epic Structure → Design-Spike Epic.
 
 ### Priority Labels
 
@@ -196,6 +197,49 @@ Both are set at issue creation time. The label is what scrum teams see day-to-da
 - Stories are assigned to both the epic label and the milestone
 
 **Backward compatibility:** Existing milestones named `Phase N: <Name>` are treated as epics without renaming. If an existing project has no `epic:*` labels, the skills create them when adding new stories.
+
+### Design-Spike Epic
+
+A **design-spike epic** is a research-driven pre-epic that produces written design artifacts before any implementation work begins. It auto-injects at the head of the project when triggered, giving every subsequent implementation subagent a shared anchor for naming, file layout, types, and patterns.
+
+**When it auto-injects:**
+
+- Two-pass scaffolding was triggered AND the resulting skeleton has more than one implementation epic, OR
+- PRD frontmatter contains `design_spike: true`, OR
+- User explicitly passes `--design-spike` to `/project-scaffold`.
+
+`design_spike: false` in PRD frontmatter suppresses the epic even when other triggers fire. The global enable switch is `scaffold.design_spike_enabled` in `config.json` (default `true`).
+
+**What it contains:**
+
+- One ADR-authoring story (`persona: research`, `executor: claude`) producing the project's foundational ADR at `<paths.adr>/NNNN-<slug>.md`.
+- One CONTEXT.md-authoring story per implementation epic (`persona: research`, `executor: claude`) producing `<paths.context>/<epic-slug>/CONTEXT.md` from the shared template at `skills/shared/templates/CONTEXT-template.md`.
+
+**How it gates implementation:**
+
+Every implementation story receives a `blocked_by` reference to the design-spike story that produces its epic's CONTEXT.md. Sprint planning then naturally excludes implementation stories until the design-spike epic completes — no special gate logic required, the existing dependency mechanism handles it.
+
+**Where artifacts live:**
+
+ADR and CONTEXT.md files are committed to the `development` branch via the filesystem in ALL four backends (local, GitHub, Jira, Trello). Git is the universal substrate; remote backends additionally surface links via milestone/epic descriptions but the committed files are the single source of truth.
+
+**Detection signal:**
+
+The canonical signal that an epic is a design-spike is the `type:design-spike` label (GitHub/Trello) or `epic_type: design-spike` frontmatter field (local). The default epic title is "Architecture & Design" but the title is not load-bearing — detection always uses the label/field, never the title.
+
+## Frontmatter Fields (Local Mode)
+
+In local-mode backlogs (`scaffolding: "local"`), epic and story files use YAML frontmatter for metadata. Beyond the per-file fields documented in their respective templates, these fields apply to the epic-level `_epic.md`:
+
+| Field | Type | Allowed Values | Purpose |
+|-------|------|----------------|---------|
+| `title` | string | any | Display name of the epic |
+| `slug` | string | kebab-case | Directory name and ID |
+| `status` | string | `open`, `closed` | Epic completion state |
+| `created` | string | ISO timestamp | Creation time |
+| `epic_type` | string | `design-spike` (omit for implementation epics) | Marks the epic as the design-spike pre-epic for detection by orchestration |
+
+Absence of `epic_type` means a standard implementation epic — this preserves backward compatibility with existing `_epic.md` files.
 
 ## Sprint Cadence
 

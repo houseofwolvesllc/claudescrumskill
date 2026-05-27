@@ -1,7 +1,7 @@
 ---
 title: Add new config keys to shared/config.json
 epic: foundation
-status: backlog
+status: done
 executor: claude
 priority: P0-critical
 points: 2
@@ -10,7 +10,6 @@ labels:
   - executor:claude
   - P0-critical
   - epic:foundation
-  - ready-for-work
 persona: impl
 blocked_by: []
 blocks:
@@ -18,7 +17,7 @@ blocks:
   - two-pass-scaffolding/002
   - two-pass-scaffolding/003
   - design-spike-epic/001
-sprint: null
+sprint: 1
 ---
 
 ## Objective

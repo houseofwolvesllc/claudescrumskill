@@ -1,7 +1,7 @@
 ---
 title: Foundation
 slug: foundation
-status: open
+status: closed
 created: 2026-05-27T07:19:32Z
 ---
 
