@@ -24,6 +24,186 @@ The user provides `$ARGUMENTS` which should be one or more file paths to PRD or 
 
 Read all provided documents thoroughly before proceeding.
 
+## Mode Detection
+
+Before invoking any per-backend procedure, decide whether to run scaffolding
+in **single-pass** mode (the original behavior — one agent reads the whole
+PRD and produces all epics + stories) or **two-pass** mode (skeleton
+extraction followed by per-epic elaboration subagents). Two-pass mode keeps
+per-epic context tight on large PRDs, so the last epic's stories are as
+well-specified as the first.
+
+### Trigger Evaluation (in order, first match wins)
+
+1. **PRD frontmatter override:**
+   - `scaffold_mode: single-pass` → force single-pass
+   - `scaffold_mode: two-pass` → force two-pass
+2. **CLI flag:**
+   - `--mode single-pass` → force single-pass
+   - `--mode two-pass` → force two-pass
+3. **Word count heuristic:**
+   - Count words in the PRD body (whitespace-delimited; exclude frontmatter).
+   - Read `scaffold.two_pass_threshold_words` from `../shared/config.json`
+     (default `5000`; if the key is missing, use the default silently).
+   - If word count exceeds the threshold → two-pass.
+   - Otherwise → single-pass.
+
+### Announce the Decision
+
+Before proceeding to any procedure, announce the mode and the trigger
+reason so the user understands why the heuristic chose what it chose:
+
+```
+PRD analysis:
+  Word count: 8,420 (threshold: 5000) → triggering two-pass mode
+
+Pass 1: extracting epic skeleton...
+```
+
+If an override forced the decision, mention that explicitly:
+
+```
+PRD analysis:
+  Frontmatter override: scaffold_mode: single-pass → forcing single-pass
+```
+
+### Routing
+
+- **Single-pass** → continue to the per-backend procedure (Local / Jira /
+  Trello / GitHub) and run its existing Parse the PRD step against the
+  whole PRD.
+- **Two-pass** → run the Two-Pass Procedure (below) first, then continue
+  to the per-backend procedure with the assembled story list.
+
+## Two-Pass Procedure
+
+When Mode Detection selects two-pass, run this procedure before the
+per-backend creation steps. The output is the same shape as a single-pass
+parse would produce: an assembled list of epics + their stories, ready for
+the backend to create issues/files. Backends consume the same shape, so the
+per-backend creation logic does not change.
+
+### Pass 1 — Skeleton Extraction
+
+A single agent reads the whole PRD and produces a structured manifest. The
+manifest is held in orchestrator context — it is NOT persisted to disk.
+
+**Manifest shape (YAML):**
+
+```yaml
+project:
+  name: <string>
+  description: <string>
+  global_preamble: |
+    <multi-line markdown excerpt — project overview, glossary,
+    cross-cutting non-functional requirements that every epic should know>
+  non_functional_requirements: [<string>]
+epics:
+  - name: <string>
+    slug: <kebab-case string>
+    description: <one-paragraph string>
+    slice:
+      start_line: <int>
+      end_line: <int>
+    depends_on: [<epic-slug>]
+    shared_design_concerns:
+      - <string describing naming/layout/type/pattern this epic introduces
+        that other epics may consume>
+```
+
+Pass 1 produces NO story-level detail. Its job is structural — identify
+epic boundaries, capture inter-epic dependencies, and extract the shared
+global context that every Pass 2 subagent will need. The
+`shared_design_concerns` list feeds the Design-Spike Epic procedure when
+that is triggered.
+
+### Auto-Downgrade
+
+After Pass 1 completes, evaluate the epic count:
+
+- **≤ 2 epics** → downgrade to single-pass elaboration: spawn one Pass 2
+  subagent that handles all epics together. The two-pass overhead is not
+  justified at this scale, and inter-epic coordination is easier in a
+  single context. Announce the downgrade.
+- **> 2 epics** → proceed to per-epic Pass 2 spawning.
+
+### Pass 2 — Per-Epic Elaboration
+
+Spawn one subagent per epic. Each subagent receives a focused context:
+
+- The **global preamble** from Pass 1 (project overview, glossary, NFRs)
+- Its **assigned epic's PRD slice**, extracted using `slice.start_line`
+  and `slice.end_line` from the manifest
+- A **skeleton summary** of sibling epics (name, slug, one-paragraph
+  description, dependencies) — for cross-epic dependency awareness, NOT
+  for elaboration
+
+Each Pass 2 subagent produces the complete story list for its epic:
+
+- Story titles
+- Acceptance criteria
+- Technical context
+- Story points (per CONVENTIONS.md guidelines)
+- Executor assignment (per CONVENTIONS.md guidelines)
+- Persona label
+- Dependency declarations (`blocked_by`, `blocks`)
+- All other required frontmatter fields
+
+**Concurrency cap:** Up to 3 Pass 2 subagents in parallel (matches
+`/project-orchestrate` Step 3 convention). Additional epics queue and
+start as earlier ones complete.
+
+### Story Assembly
+
+After all Pass 2 subagents return, assemble their outputs into a single
+backlog before handing off to the per-backend creation logic:
+
+1. **Collect** every story from every Pass 2 output, preserving each
+   story's epic association.
+2. **Detect slug collisions** by exact string match across all stories.
+   If two or more stories share a slug, rename all-but-the-first by
+   prepending the epic slug: `<epic-slug>-<original-slug>`. Log every
+   rename so the user sees the resolution.
+3. **Resolve cross-epic dependencies** declared in story `blocked_by`
+   and `blocks` fields. If a dependency references a slug that was
+   renamed in step 2, update the reference.
+4. **Emit the assembled list** in the same shape a single-pass parse
+   would have produced. The per-backend creation logic consumes this
+   shape unchanged.
+
+### Failure Handling
+
+Scaffolding must degrade gracefully — it must never abort on a Pass 1 or
+Pass 2 failure.
+
+**Pass 1 failure:**
+
+1. Retry once with identical input.
+2. If the second attempt fails, log the failure and fall back to
+   single-pass scaffolding: run the per-backend procedure's Parse the PRD
+   step against the whole PRD as if two-pass had never been triggered.
+3. Announce the fallback clearly:
+
+   ```
+   Pass 1 failed twice; falling back to single-pass scaffolding for this PRD.
+   ```
+
+**Pass 2 subagent failure:**
+
+1. Retry the failed subagent once with the original prompt plus the failure
+   context appended.
+2. If the second attempt fails, do NOT abort the whole scaffold:
+   - Write the affected epic's epic-level metadata (`_epic.md` in local
+     mode, milestone in remote modes) using the Pass 1 skeleton data.
+   - Generate placeholder stories for the affected epic with
+     `status: needs-context` and a note explaining the Pass 2 failure.
+     Use the existing `needs-context` status signal label from
+     CONVENTIONS.md.
+   - Sibling Pass 2 subagents continue unaffected.
+3. Surface every retry attempt and final outcome (success / fallback /
+   needs-context) in the skill's user-facing output so the user knows what
+   landed cleanly versus what needs hand-completion.
+
 ## Scaffold Procedure
 
 Read `../shared/config.json` to determine mode. If `scaffolding` is `"local"`,
@@ -39,8 +219,13 @@ instead of GitHub issues, milestones, and project boards.
 
 ### Local Step 1: Parse the PRD
 
-Same as GitHub Step 1 — extract project name, epics, stories, dependencies,
-and technical context. Present the summary and ask the user to confirm.
+**If two-pass mode was selected** (see Mode Detection), the Two-Pass
+Procedure has already produced the assembled epic + story list. Skip this
+step's parsing work and proceed to Step 2 with the assembled list as input.
+
+**If single-pass mode was selected**, do this step as before: extract
+project name, epics, stories, dependencies, and technical context. Present
+the summary and ask the user to confirm.
 
 ### Local Step 2: Detect Existing Backlog
 
@@ -187,7 +372,10 @@ and sprints. Refer to `../shared/references/PROVIDERS.md` for all API calls.
 
 ### Jira Step 1: Parse the PRD
 
-Same as Local Step 1 / GitHub Step 1.
+Same routing as Local Step 1: if two-pass mode was selected, the Two-Pass
+Procedure has already produced the assembled list — proceed to Step 2 with
+that list. If single-pass mode, parse the PRD inline as in Local Step 1 /
+GitHub Step 1.
 
 ### Jira Step 2: Ensure Project Exists
 
@@ -290,7 +478,10 @@ all API calls.
 
 ### Trello Step 1: Parse the PRD
 
-Same as Local Step 1 / GitHub Step 1.
+Same routing as Local Step 1: if two-pass mode was selected, the Two-Pass
+Procedure has already produced the assembled list — proceed to Step 2 with
+that list. If single-pass mode, parse the PRD inline as in Local Step 1 /
+GitHub Step 1.
 
 ### Trello Step 2: Ensure Board Exists
 
@@ -418,7 +609,12 @@ Ask the user to choose and, if option 2 or 3, which epic(s) to target.
 
 ### Step 1: Parse the PRD
 
-Extract the following from the PRD document(s):
+**If two-pass mode was selected** (see Mode Detection), the Two-Pass
+Procedure has already produced the assembled epic + story list. Skip the
+inline parsing below and proceed to Step 2 with that list as input.
+
+**If single-pass mode was selected**, extract the following from the PRD
+document(s):
 
 - **Project name** — used for the GitHub Project title (if creating new)
 - **Epics** — major bodies of work; each becomes a milestone (unless mapped to an existing one)

@@ -1,7 +1,7 @@
 ---
 title: Two-Pass Scaffolding
 slug: two-pass-scaffolding
-status: open
+status: closed
 created: 2026-05-27T07:19:32Z
 ---
 
