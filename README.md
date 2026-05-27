@@ -103,7 +103,12 @@ All configuration lives in `skills/shared/config.json`:
   "paths": {
     "specs": ".claude-scrum-skill/specs",
     "adr": ".claude-scrum-skill/adr",
-    "backlog": ".claude-scrum-skill/backlog"
+    "backlog": ".claude-scrum-skill/backlog",
+    "context": ".claude-scrum-skill/context"
+  },
+  "scaffold": {
+    "two_pass_threshold_words": 5000,
+    "design_spike_enabled": true
   },
   "jira": {
     "project_key": ""
@@ -123,6 +128,40 @@ All configuration lives in `skills/shared/config.json`:
 | `jira` | Jira Cloud issues, epics, and sprints | Env vars |
 | `trello` | Trello boards, lists, and cards | Env vars |
 
+### Two-Pass Mode
+
+For large PRDs, `/project-scaffold` automatically switches from single-pass to **two-pass** scaffolding. Pass 1 extracts only the epic skeleton (one agent reads the whole PRD); Pass 2 spawns one focused subagent per epic to elaborate that epic's stories. Per-epic context stays tight regardless of PRD size, so the last epic's stories are as well-specified as the first.
+
+**Triggers** (first match wins):
+
+1. PRD frontmatter `scaffold_mode: single-pass | two-pass` (explicit override)
+2. CLI flag `--mode single-pass | two-pass`
+3. PRD word count exceeds `scaffold.two_pass_threshold_words` (default `5000`)
+
+If Pass 1 finds ≤ 2 epics, scaffolding auto-downgrades to single-pass elaboration since the two-pass overhead isn't justified at that scale. Failures retry once and degrade gracefully — Pass 1 falls back to single-pass; Pass 2 marks the affected epic's stories `needs-context` and lets sibling subagents continue.
+
+The chosen mode and reasoning are announced before scaffolding begins, so you always know why a given path was taken.
+
+### Design-Spike Epic
+
+When `/project-scaffold` runs two-pass on a multi-epic PRD, it auto-injects a research-driven **design-spike epic** at the head of the project. This epic's stories (all `persona: research`) produce:
+
+- One foundational **ADR** at `<paths.adr>/NNNN-<slug>.md`
+- One per-implementation-epic **CONTEXT.md** at `<paths.context>/<epic-slug>/CONTEXT.md`
+
+Implementation epics are gated on the design-spike epic via the existing `blocked_by` mechanism, so no implementation story enters a sprint until its CONTEXT.md exists. During execution, `/project-orchestrate` subagents read `CONTEXT.md` in addition to `CLAUDE.md` before writing code — its naming, file layout, types, and patterns sections override generic CLAUDE.md conventions for that epic. This gives every parallel subagent a shared anchor, eliminating the cross-story drift that otherwise compounds before the sprint review gate.
+
+**Triggers** (first match wins):
+
+1. PRD frontmatter `design_spike: true | false`
+2. CLI flag `--design-spike | --no-design-spike`
+3. `scaffold.design_spike_enabled` config (default `true`)
+4. Auto-trigger: two-pass mode + > 1 implementation epic
+
+Artifacts are committed to the `development` branch via the filesystem in **all** backends — git is the universal substrate. Remote backends may surface links via milestone/epic descriptions but the committed files are the single source of truth.
+
+Detection signal is the `type:design-spike` label (GitHub/Trello/Jira) or `epic_type: design-spike` frontmatter field (local). The default epic title is "Architecture & Design" but the title is not load-bearing.
+
 ### Configurable Paths
 
 | Path | Default | Purpose |
@@ -130,8 +169,16 @@ All configuration lives in `skills/shared/config.json`:
 | `paths.specs` | `.claude-scrum-skill/specs` | Spec documents from `/spec` |
 | `paths.adr` | `.claude-scrum-skill/adr` | Architecture Decision Records |
 | `paths.backlog` | `.claude-scrum-skill/backlog` | Local backlog files (local mode only) |
+| `paths.context` | `.claude-scrum-skill/context` | Per-epic CONTEXT.md files produced by the design-spike epic |
 
 To check these files into version control (e.g., `docs/adr`), change the path and it won't be covered by the `.gitignore` entry for `.claude-scrum-skill`.
+
+### Scaffolding Behavior
+
+| Key | Default | Purpose |
+|-----|---------|---------|
+| `scaffold.two_pass_threshold_words` | `5000` | PRD word count above which two-pass scaffolding auto-triggers |
+| `scaffold.design_spike_enabled` | `true` | Global enable switch for the design-spike pre-epic |
 
 ---
 
@@ -140,6 +187,18 @@ To check these files into version control (e.g., `docs/adr`), change the path an
 ### Local Mode (default — no setup required)
 
 1. **Write a PRD** — Create a markdown file describing your project, epics, and stories.
+
+   Optionally include YAML frontmatter to override the auto-detected scaffolding behavior:
+
+   ```yaml
+   ---
+   title: My Project
+   scaffold_mode: two-pass     # force two-pass even for a small PRD
+   design_spike: false         # suppress the design-spike epic even when triggered
+   ---
+   ```
+
+   Both fields are optional — omit them to use the word-count heuristic and the auto-injection rules described in [Two-Pass Mode](#two-pass-mode) and [Design-Spike Epic](#design-spike-epic).
 
 2. **Scaffold the project:**
    ```
@@ -320,9 +379,9 @@ During sprint planning, personas are assigned automatically based on story label
 
 ### Phase 1 — Epic Completion Loop
 
-1. Scaffolds the PRD (if provided) or reads existing backlog
-2. Plans sprints via `/sprint-plan`
-3. Executes `executor:claude` stories in parallel via subagents with persona routing
+1. Scaffolds the PRD (if provided) or reads existing backlog. On large or multi-epic PRDs, scaffolding runs in [two-pass mode](#two-pass-mode) and auto-injects a [design-spike epic](#design-spike-epic) at position 0
+2. Plans sprints via `/sprint-plan` — the design-spike epic (when present) executes first, producing the ADR and per-epic `CONTEXT.md` files that seed the implementation epics
+3. Executes `executor:claude` stories in parallel via subagents with persona routing — implementation subagents read their epic's `CONTEXT.md` in addition to `CLAUDE.md` before writing code
 4. Releases via `/sprint-release`
 5. Runs automated review gate (using the `review` persona)
 6. Merges to `development` and cleans up branches
@@ -404,6 +463,7 @@ skills/shared/
 - **Run `/project-cleanup --fix` after major changes** to enforce build/lint cleanliness and test coverage.
 - **Chunk large epics** into multiple sprints for natural review gates.
 - **Jira/Trello users:** If no project key or board ID is configured, `/project-scaffold` creates one automatically (Scrum template for Jira).
+- **Author large PRDs with explicit architectural intent.** Sections describing shared types, naming conventions, file layout boundaries, and cross-cutting patterns give the [design-spike epic](#design-spike-epic) concrete material to lift into the project's foundational ADR and per-epic `CONTEXT.md` files — the better your PRD spells these out, the more consistent your parallel implementation subagents will be.
 
 ---
 

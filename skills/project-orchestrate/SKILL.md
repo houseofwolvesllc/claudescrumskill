@@ -11,8 +11,8 @@ Fully autonomous project lifecycle driver. Plans sprints, executes stories via p
 
 ## Before You Start
 
-1. Read `../shared/references/CONVENTIONS.md` for all project management standards. Follow these conventions exactly.
-2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` value. Read `../shared/references/PROVIDERS.md` for provider-specific API commands when using a remote provider.
+1. Read `../shared/references/CONVENTIONS.md` for all project management standards. Follow these conventions exactly. Pay particular attention to **Epic Structure → Design-Spike Epic** — orchestration honors the design-spike epic's gating, so implementation work in a scoped run does not begin until the design-spike epic completes.
+2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` and `paths.context` values (`paths.context` defaults to `.claude-scrum-skill/context` and is where Step 3 subagents look for per-epic CONTEXT.md files). Read `../shared/references/PROVIDERS.md` for provider-specific API commands when using a remote provider.
 3. Read the project's `CLAUDE.md` (if it exists) for project-specific rules. **All subagents you spawn must also read and follow `CLAUDE.md`** — include this instruction explicitly in every subagent prompt.
 4. Read `../shared/references/PERSONAS.md` for role preambles. When spawning
    subagents, select the persona matching each story's `persona:*` label (GitHub mode)

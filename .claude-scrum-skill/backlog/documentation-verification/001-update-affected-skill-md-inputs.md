@@ -1,7 +1,7 @@
 ---
 title: Update affected SKILL.md "Before You Start" / "Input" sections
 epic: documentation-verification
-status: backlog
+status: done
 executor: claude
 priority: P2-medium
 points: 3
@@ -10,14 +10,13 @@ labels:
   - executor:claude
   - P2-medium
   - epic:documentation-verification
-  - ready-for-work
 persona: impl
 blocked_by:
   - foundation/004
   - orchestrate-integration/001
 blocks:
   - documentation-verification/003
-sprint: null
+sprint: 4
 ---
 
 ## Objective
