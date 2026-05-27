@@ -39,8 +39,10 @@ jobs:
       - name: Publish to npm
         if: steps.version.outputs.publish == 'true'
         run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # Auth is handled via npm Trusted Publishers (OIDC) — no NPM_TOKEN
+        # secret needed. The id-token: write permission above lets npm verify
+        # this workflow is the configured trusted publisher for the package.
+        # Configure at: npmjs.com → package → Settings → Trusted Publishers.
 
       - name: Create and push git tag
         if: steps.version.outputs.publish == 'true'
