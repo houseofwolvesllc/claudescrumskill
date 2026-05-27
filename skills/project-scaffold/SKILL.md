@@ -56,6 +56,14 @@ Equivalent flags can be passed alongside the PRD path:
 - `--design-spike` / `--no-design-spike` — overrides any frontmatter or
   auto-injection rule for the design-spike epic.
 
+There is no formal CLI argument parser — Claude Code skills receive a
+single free-text `$ARGUMENTS` string. The executing agent scans
+`$ARGUMENTS` for these flag strings (exact match) and treats each
+recognized flag as a trigger source at the precedence noted below.
+Invalid or empty flag values (e.g., `--mode` with no value, or
+`--mode three-pass`) are ignored, and the next trigger source in
+precedence applies.
+
 Trigger precedence (highest first): CLI flag → PRD frontmatter → config /
 heuristic. Whatever wins is announced before scaffolding begins so the
 user understands why a given path was taken.
@@ -71,12 +79,12 @@ well-specified as the first.
 
 ### Trigger Evaluation (in order, first match wins)
 
-1. **PRD frontmatter override:**
-   - `scaffold_mode: single-pass` → force single-pass
-   - `scaffold_mode: two-pass` → force two-pass
-2. **CLI flag:**
+1. **CLI flag:**
    - `--mode single-pass` → force single-pass
    - `--mode two-pass` → force two-pass
+2. **PRD frontmatter override:**
+   - `scaffold_mode: single-pass` → force single-pass
+   - `scaffold_mode: two-pass` → force two-pass
 3. **Word count heuristic:**
    - Count words in the PRD body (whitespace-delimited; exclude frontmatter).
    - Read `scaffold.two_pass_threshold_words` from `../shared/config.json`
@@ -181,7 +189,7 @@ Each Pass 2 subagent produces the complete story list for its epic:
 - Technical context
 - Story points (per CONVENTIONS.md guidelines)
 - Executor assignment (per CONVENTIONS.md guidelines)
-- Persona label
+- Persona designation (local mode: the `persona` frontmatter field; GitHub/Jira/Trello modes: a `persona:*` label — see CONVENTIONS.md "Persona Labels" and PERSONAS.md for the canonical set)
 - Dependency declarations (`blocked_by`, `blocks`)
 - All other required frontmatter fields
 
@@ -251,17 +259,18 @@ CONVENTIONS.md → Epic Structure → Design-Spike Epic for the broader rational
 
 ### Trigger Evaluation (in order, first match wins)
 
-1. **PRD frontmatter override:**
-   - `design_spike: false` → suppress the design-spike epic.
-   - `design_spike: true` → force it.
-2. **CLI flag:**
+1. **CLI flag:**
    - `--no-design-spike` → suppress.
    - `--design-spike` → force.
+2. **PRD frontmatter override:**
+   - `design_spike: false` → suppress the design-spike epic.
+   - `design_spike: true` → force it.
 3. **Global enable switch:**
    - Read `scaffold.design_spike_enabled` from `../shared/config.json`
      (default `true`; missing key falls back to default silently).
-   - If `false` globally, skip the design-spike regardless of other
-     signals except an explicit override above.
+   - If `false` globally, skip the design-spike regardless of remaining
+     signals (the CLI flag and frontmatter overrides above already won
+     before reaching this rule if either was set).
 4. **Auto-trigger:**
    - Two-pass mode was selected AND Pass 1 produced more than one
      implementation epic → auto-inject.
