@@ -1,7 +1,7 @@
 ---
 title: Create CONTEXT.md template
 epic: foundation
-status: backlog
+status: done
 executor: claude
 priority: P0-critical
 points: 3
@@ -10,14 +10,13 @@ labels:
   - executor:claude
   - P0-critical
   - epic:foundation
-  - ready-for-work
 persona: impl
 blocked_by: []
 blocks:
   - design-spike-epic/001
   - design-spike-epic/002
   - orchestrate-integration/001
-sprint: null
+sprint: 1
 ---
 
 ## Objective

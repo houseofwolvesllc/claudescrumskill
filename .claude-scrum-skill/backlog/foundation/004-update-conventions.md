@@ -1,7 +1,7 @@
 ---
 title: Update CONVENTIONS.md with new label, field, and design-spike workflow
 epic: foundation
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 3
@@ -10,13 +10,12 @@ labels:
   - executor:claude
   - P1-high
   - epic:foundation
-  - ready-for-work
 persona: impl
 blocked_by: []
 blocks:
   - documentation-verification/001
   - documentation-verification/002
-sprint: null
+sprint: 1
 ---
 
 ## Objective

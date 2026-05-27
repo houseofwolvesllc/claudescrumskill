@@ -1,7 +1,7 @@
 ---
 title: Create ADR template (if missing)
 epic: foundation
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 2
@@ -10,13 +10,12 @@ labels:
   - executor:claude
   - P1-high
   - epic:foundation
-  - ready-for-work
 persona: impl
 blocked_by: []
 blocks:
   - design-spike-epic/001
   - orchestrate-integration/001
-sprint: null
+sprint: 1
 ---
 
 ## Objective
