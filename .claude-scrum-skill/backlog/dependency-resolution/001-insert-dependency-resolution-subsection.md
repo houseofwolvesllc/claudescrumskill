@@ -1,7 +1,7 @@
 ---
 title: Insert Dependency Resolution subsection
 epic: dependency-resolution
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 3
@@ -10,13 +10,12 @@ labels:
   - executor:claude
   - P1-high
   - epic:dependency-resolution
-  - ready-for-work
 persona: impl
 blocked_by:
   - mode-detection/001
 blocks:
   - sequential-execution/001
-sprint: null
+sprint: 3
 ---
 
 ## Objective
