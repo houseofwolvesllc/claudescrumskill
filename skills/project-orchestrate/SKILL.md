@@ -135,7 +135,91 @@ For single-spec, repo-identifier, or no-arg modes, the announcement is the exist
 
 ### Dependency Resolution
 
-(Documented in the next subsection — see Dependency Resolution.)
+Applies only to sequential multi-path mode (and merged mode if dependencies need to inform internal ordering). Runs after Mode Classification but BEFORE any spec executes.
+
+#### `depends_on` Frontmatter
+
+Each PRD/spec MAY declare an optional `depends_on` field in its YAML frontmatter. The value is a YAML list of paths or basenames. See `CONVENTIONS.md` → Frontmatter Fields → PRD Document Frontmatter for the full convention.
+
+```yaml
+---
+title: My Spec
+depends_on:
+  - other-spec.md            # basename match against other args
+  - subdir/another-spec.md   # path match relative to this spec's directory
+---
+```
+
+#### Path Resolution
+
+For each entry in a spec's `depends_on` list:
+
+1. Try interpreting the entry as a path relative to the declaring spec's own directory. If it canonicalizes to one of the specs in the current invocation's argument list (compared by canonical absolute path), the dependency resolves.
+2. If step 1 fails, try interpreting the entry as a basename match against the basenames (filename without directory) of the argument-list specs. If exactly one spec in the list has a matching basename, the dependency resolves.
+3. If neither step 1 nor step 2 resolves to a spec in the current invocation's argument list, ABORT the run with a clear error message naming the unresolved entry. Do NOT start any spec. Silent ignoring of unresolved dependencies would lead to subtle wrong-order execution.
+
+#### Dependency Graph Construction
+
+After resolving every spec's `depends_on` entries, build a directed acyclic graph (DAG):
+
+- Nodes: each spec in the argument list.
+- Edges: from depended-upon spec → dependent spec. (If spec-B has `depends_on: [spec-A.md]`, the edge is `spec-A → spec-B`, meaning A must complete before B.)
+
+#### Cycle Detection
+
+Detect cycles using the standard algorithm (e.g., DFS with a visiting-set). A cycle includes:
+
+- Two-node cycles: `A → B → A`.
+- Longer cycles: `A → B → C → A`.
+- Self-loops: a spec declaring `depends_on: [itself.md]`.
+
+If any cycle is detected, ABORT with the following error format BEFORE starting any spec:
+
+```
+ERROR: Dependency cycle detected. No specs were started.
+
+Cycle members:
+  spec-a.md → depends_on: spec-b.md
+  spec-b.md → depends_on: spec-a.md
+
+Resolve the cycle (remove one of the declarations) and re-run.
+```
+
+#### Missing-Dependency Detection
+
+If any `depends_on` entry references a path that does not appear in the current invocation's argument list (after path resolution per the rules above), ABORT with the following error format BEFORE starting any spec:
+
+```
+ERROR: Dependency not in argument list. No specs were started.
+
+Missing dependency:
+  spec-b.md declares depends_on: [spec-a.md]
+  spec-a.md is not present in this invocation.
+
+Either add spec-a.md to the invocation, or remove the depends_on declaration in spec-b.md.
+```
+
+#### Topological Sort with Stable Tie-Break
+
+Once the graph passes cycle and missing-dependency checks, topologically sort the specs. Tie-break: when two specs have no dependency relationship between them, the one appearing earlier in the original `$ARGUMENTS` order executes first. The sort MUST be stable.
+
+#### No-`depends_on` Fallback
+
+If NO spec declares `depends_on`, execution order is simply the order tokens appear in `$ARGUMENTS`. No graph construction or topological sort is performed (or, equivalently, an empty graph topo-sorts to the input order).
+
+#### Pre-Execution Validation Order
+
+All validation runs BEFORE any spec's orchestration begins (NFR-3):
+
+1. Mixed-argument detection (per Mode Classification).
+2. Flag validation (unknown flags abort).
+3. Glob expansion (if needed).
+4. `depends_on` parsing and path resolution.
+5. Cycle detection.
+6. Missing-dependency detection.
+7. Topological sort.
+
+Only after all of these pass does the per-spec wrapper start invoking the per-spec orchestration.
 
 ---
 
