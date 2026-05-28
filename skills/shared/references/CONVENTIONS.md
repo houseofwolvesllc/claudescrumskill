@@ -241,6 +241,29 @@ In local-mode backlogs (`scaffolding: "local"`), epic and story files use YAML f
 
 Absence of `epic_type` means a standard implementation epic — this preserves backward compatibility with existing `_epic.md` files.
 
+### PRD Document Frontmatter
+
+PRD/spec documents (passed to `/project-scaffold` or `/project-orchestrate`) may declare an optional `depends_on` field at the top of the document. The field is consumed by `/project-orchestrate` when running in sequential multi-path mode to determine inter-spec execution order — see `project-orchestrate/SKILL.md` → Input Parsing and Mode Detection → Dependency Resolution for the full algorithm.
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `depends_on` | list of strings | Other specs in the same multi-path invocation that must complete before this one. Each entry is either a path (relative to this spec's directory) or a basename matching another spec in the argument list. Absence of the field means no inter-spec constraint — execution falls back to argument order. |
+
+Example:
+
+```yaml
+---
+title: My Spec
+depends_on:
+  - other-spec.md            # basename match against other args
+  - subdir/another-spec.md   # path match relative to this spec's directory
+---
+```
+
+`depends_on` is parallel in spirit to the story-level `blocked_by` field, but operates at the spec level. `/project-orchestrate` resolves the dependency graph at run start (topological sort, stable tie-break on argument order) and aborts the run BEFORE any spec executes if a cycle or missing dependency is detected. Cycles include self-references (`depends_on: [this-spec.md]`).
+
+The field is ignored in single-path orchestrate invocations and in `/project-scaffold` invocations — it only takes effect when 2+ existing-file paths are passed to `/project-orchestrate`.
+
 ## Sprint Cadence
 
 - Default sprint length: **2 weeks** (configurable per project)
