@@ -1,7 +1,7 @@
 ---
 title: Update Before You Start, CHANGELOG entry, package.json version bump
 epic: documentation-release
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 3
@@ -10,13 +10,12 @@ labels:
   - executor:claude
   - P1-high
   - epic:documentation-release
-  - ready-for-work
 persona: impl
 blocked_by:
   - foundation/002
   - summary-merged/001
 blocks: []
-sprint: null
+sprint: 6
 ---
 
 ## Objective
