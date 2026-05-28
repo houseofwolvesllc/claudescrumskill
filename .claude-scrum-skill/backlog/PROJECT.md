@@ -1,16 +1,13 @@
 ---
-name: Orchestrate Large-PRD Hardening
-created: 2026-05-27T07:19:32Z
+name: Multi-Spec Sequential Orchestration
+created: 2026-05-28T05:04:12Z
 sprints: []
 ---
 
-# Orchestrate Large-PRD Hardening
+# Multi-Spec Sequential Orchestration
 
-Two strategic improvements to `/project-orchestrate` for handling large PRDs:
+Formalize `/project-orchestrate`'s behavior when given multiple PRD paths. Default becomes sequential per-spec orchestration: each spec receives its own complete orchestration (Phase 1 → Phase 2 → Phase 3 → ADR → state cleanup) before the next begins. Inter-spec ordering can be overridden by `depends_on` PRD frontmatter via topological sort. Opt-in `--skip-on-pause` advances the queue when one spec hits a safety gate; opt-in `--merged` preserves the legacy unified-multi-spec behavior with a deprecation warning.
 
-1. **Two-pass scaffolding** — splits PRD parsing work across multiple focused subagents so per-epic context stays tight, regardless of PRD size.
-2. **Design-spike epic** — auto-injects a research-driven pre-epic that produces an ADR and per-epic `CONTEXT.md` files, giving every implementation subagent a shared anchor for naming, file layout, types, and patterns.
+Single-path, repo-identifier, and no-arg invocations are unchanged from v1.7.1.
 
-Both improvements are additive, backward-compatible, and configurable. Small PRDs (single epic, <5000 words) follow the existing single-pass path unchanged.
-
-Source spec: `docs/specs/20260527_000454_orchestrate_large_prd_hardening.md`
+Source spec: `docs/specs/20260527_215752_multi_spec_sequential_orchestration.md`
