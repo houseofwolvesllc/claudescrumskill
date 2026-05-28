@@ -1,7 +1,7 @@
 ---
 title: Summary & Merged Mode
 slug: summary-merged
-status: open
+status: closed
 created: 2026-05-28T05:04:12Z
 ---
 

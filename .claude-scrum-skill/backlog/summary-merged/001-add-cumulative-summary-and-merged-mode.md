@@ -1,7 +1,7 @@
 ---
 title: Add Cumulative Summary and Merged Mode subsections
 epic: summary-merged
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 3
@@ -10,13 +10,12 @@ labels:
   - executor:claude
   - P1-high
   - epic:summary-merged
-  - ready-for-work
 persona: impl
 blocked_by:
   - sequential-execution/001
 blocks:
   - documentation-release/001
-sprint: null
+sprint: 5
 ---
 
 ## Objective

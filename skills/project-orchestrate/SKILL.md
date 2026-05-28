@@ -1039,6 +1039,70 @@ A multi-path run paused on a safety gate is resumed by re-invoking `/project-orc
 
 Completed specs are NOT re-executed on resume. The wrapper skips entries marked `completed` and `skipped`, resumes the entry marked `paused` (handing off to the per-spec orchestration's own resume logic), and continues with `pending` entries afterward.
 
+### Cumulative Summary
+
+At the end of a multi-path run (all specs `completed` or `skipped`, none `paused`), emit a cumulative summary mirroring the existing single-spec completion summary structure, with a per-spec section plus an aggregate header.
+
+Format:
+
+```
+## Multi-Spec Orchestration Complete
+
+### Aggregate
+- Specs in queue: 3
+- Completed: 2 (spec-a, spec-c)
+- Skipped: 1 (spec-b, paused on 3rd hardening run; archived)
+- Total stories delivered: 27 (44 story points)
+- Total sprints: 7
+- Total ADRs created: 3
+- Total duration: 4h 12m
+
+### Per-Spec
+
+#### spec-a.md  ✅ Completed
+- 3 sprints, 12 stories, 18 points
+- Design-spike: yes (ADR-0007, 2 CONTEXT.md files)
+- Emulation runs: 1 (clean)
+- Cleanup: PASS
+- State archive: orchestration-state-spec-a.previous.md
+- ADR: docs/adrs/0007-spec-a-architecture.md
+
+#### spec-b.md  ⚠️ Skipped (paused, --skip-on-pause)
+- 2 sprints, 8 stories, 13 points completed before pause
+- Pause reason: 3rd hardening run produced 2 critical findings
+- State archive: orchestration-state-spec-b.skipped.md
+- Report: .claude-scrum-skill/reports/emulation-report/ISSUES.md
+
+#### spec-c.md  ✅ Completed
+- 4 sprints, 15 stories, 26 points
+- Design-spike: no (single epic)
+- Emulation runs: 2 (clean after hardening)
+- Cleanup: PASS
+- State archive: orchestration-state-spec-c.previous.md
+- ADR: docs/adrs/0008-spec-c-architecture.md
+```
+
+After emitting the summary, mark the queue `Status: completed` and rename `orchestration-queue-state.md` → `orchestration-queue-state.previous.md`.
+
+### Merged Mode (Opt-In)
+
+When `--merged` is set alongside 2+ PRD paths, the skill treats the inputs as one combined multi-spec project using legacy best-effort behavior — the pre-v1.8.0 path where the agent improvises merge policy at runtime (one combined scaffold call, one merged design-spike, one combined sprint cycle, one emulation, one cleanup, one ADR pass).
+
+Emit the following deprecation-style warning BEFORE proceeding:
+
+```
+WARNING: --merged is set. Multi-path inputs will be treated as one combined
+project with best-effort merge semantics. Formal merged behavior is not
+yet specified (deferred to a follow-up spec); results may be inconsistent
+run-to-run.
+
+If you want predictable per-spec isolation, drop --merged and re-run.
+
+Proceeding with merged mode...
+```
+
+Then run the legacy unified-multi-spec flow. The queue state file is still created (with `Mode: merged` in Meta) but tracks the merged invocation as a single combined orchestration rather than per-spec entries. Formal merged semantics — shared design-spike strategy, cross-spec dependency resolution, unified state file vs queue file — are deferred to a follow-up spec.
+
 ---
 
 ## Communication Pattern
