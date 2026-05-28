@@ -66,11 +66,15 @@ PRD (optional)  -->  /project-orchestrate
 # Global install — available in all projects
 npm install -g @houseofwolvesllc/claude-scrum-skill
 
-# Local install — this project only
-npm install @houseofwolvesllc/claude-scrum-skill
+# Local install — this project only (developer tooling → devDependencies)
+npm install --save-dev @houseofwolvesllc/claude-scrum-skill
+# or the shorthand:
+npm install -D @houseofwolvesllc/claude-scrum-skill
 ```
 
 Global install copies skills to `~/.claude/skills/`. Local install copies them to `<project>/.claude/skills/` and adds `.claude-scrum-skill` to your `.gitignore`.
+
+> **Why `--save-dev`?** This package is developer tooling — the skills are consumed by Claude Code at planning/build/iteration time, never by your application's runtime. Saving to `devDependencies` (instead of `dependencies`) keeps it out of production installs (`npm ci --production`, `NODE_ENV=production`, Docker production layers), avoids running the postinstall script in environments where `~/.claude/skills/` doesn't exist, and accurately reflects that the package isn't a runtime requirement. Same category as `eslint`, `prettier`, `vitest`, etc.
 
 Skills surface in Claude Code with their plain names: `/project-scaffold`, `/project-orchestrate`, `/sprint-plan`, etc.
 
