@@ -385,6 +385,36 @@ During sprint planning, personas are assigned automatically based on story label
 
 `/project-orchestrate` chains all skills into a fully autonomous pipeline.
 
+### Invocation Patterns
+
+| Form | Behavior |
+|------|----------|
+| `/project-orchestrate` | Orchestrates all open epics in the existing backlog. |
+| `/project-orchestrate spec.md` | Single-spec orchestration. Scaffolds the spec, runs the full lifecycle. |
+| `/project-orchestrate spec-1.md spec-2.md spec-3.md` | **Sequential multi-path mode.** Each spec receives its own complete orchestration (Phase 1 → Phase 2 → Phase 3 → ADR → state cleanup) end-to-end before the next begins. Each spec gets its own design-spike (if triggered), emulation pass, cleanup, and ADR. |
+| `/project-orchestrate owner/repo` | GitHub mode — orchestrates the named repo's open epics. |
+| `/project-orchestrate spec.md owner/repo` | GitHub mode — scaffolds the spec into the named repo, then orchestrates only that PRD's epics. |
+| `/project-orchestrate --merged spec-1.md spec-2.md` | Opt-in merged mode. Treats inputs as one combined project with best-effort legacy behavior. Emits a warning that formal merged semantics are deferred to a follow-up spec — prefer the sequential default unless you need merged. |
+
+#### Multi-Path Flags
+
+- **`--skip-on-pause`** (default off) — when a spec's orchestration pauses on a safety gate, mark it skipped and advance to the next spec instead of pausing the queue. Use with caution; safety gates exist for a reason.
+- **`--merged`** (default off) — see the table above; opts into the legacy unified-multi-spec behavior.
+
+#### Inter-Spec Dependencies
+
+PRD documents can declare optional `depends_on` frontmatter to override the default argument-order execution:
+
+```yaml
+---
+title: Spec B
+depends_on:
+  - spec-a.md   # ensure spec-a runs before this one
+---
+```
+
+`/project-orchestrate` resolves the dependency graph at run start (topological sort, ties broken by argument order) and aborts before any spec executes if a cycle or missing dependency is detected. See `CONVENTIONS.md` → Frontmatter Fields → PRD Document Frontmatter for the full convention.
+
 ### Phase 1 — Epic Completion Loop
 
 1. Scaffolds the PRD (if provided) or reads existing backlog. On large or multi-epic PRDs, scaffolding runs in [two-pass mode](#two-pass-mode) and auto-injects a [design-spike epic](#design-spike-epic) at position 0
@@ -472,6 +502,7 @@ skills/shared/
 - **Chunk large epics** into multiple sprints for natural review gates.
 - **Jira/Trello users:** If no project key or board ID is configured, `/project-scaffold` creates one automatically (Scrum template for Jira).
 - **Author large PRDs with explicit architectural intent.** Sections describing shared types, naming conventions, file layout boundaries, and cross-cutting patterns give the [design-spike epic](#design-spike-epic) concrete material to lift into the project's foundational ADR and per-epic `CONTEXT.md` files — the better your PRD spells these out, the more consistent your parallel implementation subagents will be.
+- **For related specs, declare `depends_on` in PRD frontmatter** rather than relying on argument order. `/project-orchestrate` will topologically sort the queue and abort on cycles or missing deps before any spec runs — catches ordering mistakes up front instead of mid-orchestration.
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 title: Document multi-path invocation pattern in README
 epic: foundation
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 3
@@ -10,12 +10,11 @@ labels:
   - executor:claude
   - P1-high
   - epic:foundation
-  - ready-for-work
 persona: impl
 blocked_by: []
 blocks:
   - documentation-release/001
-sprint: null
+sprint: 1
 ---
 
 ## Objective
