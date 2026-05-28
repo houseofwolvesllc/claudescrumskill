@@ -892,6 +892,153 @@ run starts with a clean slate:
 rm -f .claude-scrum-skill/orchestration-state.md
 ```
 
+**In multi-path mode, Step 17 is suppressed.** The multi-path wrapper handles per-spec state file archival with a slug-suffixed name instead — see Sequential Multi-Path Mode → Per-Spec State File Lifecycle.
+
+---
+
+## Sequential Multi-Path Mode
+
+Applies when Mode Classification selected sequential multi-path mode (2+ tokens, all paths to existing files, `--merged` not set). This section is the wrapper that invokes the existing single-spec orchestration (Phases 1-3 + Step 16 + Step 17, as documented above) once per spec, in the order determined by Dependency Resolution.
+
+### Per-Spec Loop
+
+For each spec in the topologically-sorted execution order:
+
+1. Update the queue state file (see below): mark this spec's row as `in-progress`, record `Started` timestamp.
+2. Invoke the full single-spec orchestration against this spec. This is the existing v1.7.1 flow — Phase 1 (Epic Completion Loop, including scaffolding via `/project-scaffold`), Phase 2 (Emulation Hardening Loop), Phase 3 (Project Cleanup), Step 16 (ADR Update). Step 17 (state file cleanup) is **suppressed** in multi-path mode; the wrapper handles archival instead.
+3. On the spec's natural completion: archive `.claude-scrum-skill/orchestration-state.md` to `.claude-scrum-skill/orchestration-state-<spec-slug>.previous.md` BEFORE the next spec begins. Update the queue state file: mark this spec's row as `completed`, record `Completed` timestamp, update aggregate stats.
+4. On the spec's safety-gate pause:
+   - **Without `--skip-on-pause`** (default): the per-spec state file remains at `.claude-scrum-skill/orchestration-state.md` with `Status: paused`. Update the queue state file: mark this spec's row as `paused`, set queue `Status: paused`. Exit the wrapper. The remaining specs in the queue are NOT started. The user resolves the gate, re-invokes `/project-orchestrate` with the same arguments, and the queue resumes from this spec.
+   - **With `--skip-on-pause`**: archive `.claude-scrum-skill/orchestration-state.md` to `.claude-scrum-skill/orchestration-state-<spec-slug>.skipped.md`. Update the queue state file: mark this spec's row as `skipped`, record the pause reason. Continue to the next spec.
+5. Per-spec orchestration runs to completion (or pause) before the next spec begins — no interleaving of sprints, no concurrent execution.
+
+### Spec Slug Derivation
+
+A spec's slug is derived from its filename: `basename(path, ".md")`.
+
+- `docs/specs/20260527_215752_multi_spec_sequential_orchestration.md` → `20260527_215752_multi_spec_sequential_orchestration`
+- `spec-a.md` → `spec-a`
+
+If two specs in the same invocation produce the same slug (e.g., one is `foo/spec.md`, another is `bar/spec.md`), ABORT before starting any spec — slug collisions would clobber each other's archived state files. Error format:
+
+```
+ERROR: Spec slug collision. No specs were started.
+
+Colliding specs:
+  foo/spec.md → slug "spec"
+  bar/spec.md → slug "spec"
+
+Rename one of the specs so basenames differ, then re-run.
+```
+
+### Per-Spec State File Lifecycle
+
+| Event | State file action |
+|-------|-------------------|
+| Spec starts | Per-spec orchestration creates `.claude-scrum-skill/orchestration-state.md` (existing v1.7.1 behavior). |
+| Spec completes naturally | Wrapper renames to `.claude-scrum-skill/orchestration-state-<slug>.previous.md`. |
+| Spec pauses, no `--skip-on-pause` | File remains at canonical location with `Status: paused`. Queue exits. |
+| Spec pauses, with `--skip-on-pause` | Wrapper renames to `.claude-scrum-skill/orchestration-state-<slug>.skipped.md`. Queue advances. |
+| Resume from paused state | Per-spec orchestration reads `.claude-scrum-skill/orchestration-state.md` and resumes (existing v1.7.1 behavior). The wrapper resumes the queue from this spec's position based on the queue state file. |
+
+Single-spec mode state file lifecycle is unchanged from v1.7.1 — no slug suffix, no queue file. Step 17's `rm -f` runs as it always did. Only multi-path mode uses the slug-suffix archival and suppresses Step 17.
+
+### Queue State File
+
+Multi-path mode maintains a queue state file at `.claude-scrum-skill/orchestration-queue-state.md` tracking the entire run. The file is human-readable markdown.
+
+**Structure:**
+
+```markdown
+# Orchestration Queue State
+
+## Meta
+- **Mode:** sequential | merged
+- **Status:** running | paused | completed
+- **Started:** <ISO timestamp>
+- **Last Updated:** <ISO timestamp>
+- **Flags:** --skip-on-pause=<true|false>, --merged=<true|false>
+
+## Specs (resolved execution order)
+| # | Spec Path | Slug | Status | Started | Completed | State File Archive |
+|---|-----------|------|--------|---------|-----------|--------------------|
+| 1 | docs/specs/spec-a.md | spec-a | completed | <ts> | <ts> | orchestration-state-spec-a.previous.md |
+| 2 | docs/specs/spec-b.md | spec-b | in-progress | <ts> | — | orchestration-state.md (live) |
+| 3 | docs/specs/spec-c.md | spec-c | pending | — | — | — |
+
+## Dependency Graph
+- spec-c depends_on spec-a
+- spec-b depends_on spec-a
+(or "no dependencies declared" if empty)
+
+## Aggregate (updated as specs complete)
+- **Total specs:** N
+- **Completed:** N
+- **Paused:** N (current: <spec-slug>, if any)
+- **Skipped:** N
+- **Pending:** N
+- **Total stories delivered (across completed specs):** N
+- **Total sprints executed:** N
+- **Total ADRs created:** N
+
+## Log
+- [<ts>] Multi-path run started — 3 specs in scope
+- [<ts>] Dependency graph resolved — execution order: spec-a, spec-b, spec-c
+- [<ts>] Spec 1/3 (spec-a) started
+- [<ts>] Spec 1/3 (spec-a) completed — 12 stories, 3 sprints
+- [<ts>] Spec 2/3 (spec-b) started
+```
+
+**Lifecycle:**
+
+- Created at multi-path mode start (after Mode Classification, Flag Parsing, Glob Expansion, and Dependency Resolution all pass).
+- Updated after every spec status transition: pending → in-progress → completed | paused | skipped.
+- On clean completion (all specs `completed` or `skipped`, none `paused`): renamed to `orchestration-queue-state.previous.md`. The wrapper emits the Cumulative Summary.
+- On paused run: remains in place with `Status: paused` and the paused spec identified. Resume continues from the paused spec.
+
+**On startup**, check for an existing `.claude-scrum-skill/orchestration-queue-state.md`:
+
+- `Status: running` → resume from the recorded position (autonomous default).
+- `Status: paused` → resume from the recorded position. The paused spec's per-spec state file is read by its own resume logic.
+- `Status: completed` → rename to `orchestration-queue-state.previous.md` and start a fresh run.
+- No file → initialize a new queue state file.
+
+Never prompt. Same autonomous-default discipline as the single-spec state file (see Default Operating Mode).
+
+### Safety-Gate Pause Announcements
+
+**Default (without `--skip-on-pause`):**
+
+```
+[Spec 2/3] spec-b.md — paused on safety gate.
+
+Pause reason: 3rd consecutive hardening run produced 2 critical findings
+(see .claude-scrum-skill/reports/emulation-report/ISSUES.md).
+
+Remaining specs (1) are not started. Queue state preserved at
+.claude-scrum-skill/orchestration-queue-state.md.
+
+Resolve the findings and re-invoke /project-orchestrate with the same
+arguments to resume. The queue picks up at spec-b.md.
+```
+
+**With `--skip-on-pause`:**
+
+```
+[Spec 2/3] spec-b.md — paused on safety gate. --skip-on-pause set; marking skipped.
+
+Skipped reason: 3rd consecutive hardening run produced 2 critical findings.
+State archived to .claude-scrum-skill/orchestration-state-spec-b.skipped.md.
+
+Continuing to Spec 3/3 — spec-c.md
+```
+
+### Resume Semantics
+
+A multi-path run paused on a safety gate is resumed by re-invoking `/project-orchestrate` with the same argument list. The queue state file's recorded execution order takes precedence — even if a spec's `depends_on` frontmatter changed between attempts, the resumed run uses the order recorded at the original run's start. This prevents subtle ordering shifts mid-run.
+
+Completed specs are NOT re-executed on resume. The wrapper skips entries marked `completed` and `skipped`, resumes the entry marked `paused` (handing off to the per-spec orchestration's own resume logic), and continues with `pending` entries afterward.
+
 ---
 
 ## Communication Pattern

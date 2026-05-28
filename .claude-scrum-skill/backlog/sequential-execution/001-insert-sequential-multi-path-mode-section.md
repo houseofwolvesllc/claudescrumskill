@@ -1,7 +1,7 @@
 ---
 title: Insert Sequential Multi-Path Mode section
 epic: sequential-execution
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 8
@@ -10,13 +10,12 @@ labels:
   - executor:claude
   - P1-high
   - epic:sequential-execution
-  - ready-for-work
 persona: impl
 blocked_by:
   - dependency-resolution/001
 blocks:
   - summary-merged/001
-sprint: null
+sprint: 4
 ---
 
 ## Objective
