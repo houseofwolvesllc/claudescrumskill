@@ -82,16 +82,19 @@ Before any orchestration work begins, classify the invocation into one of the mo
 
 ### Mode Classification
 
+**Pre-classification step:** Before applying the table below, separate **flag tokens** (those starting with `--`, e.g., `--skip-on-pause`, `--merged`) from **argument tokens**. Count and classify only the argument tokens. Flags are validated and consumed separately by the Flag Parsing subsection below; they do not contribute to the token count or the file/non-file determination.
+
 Apply these rules in order; the first match wins.
 
-| Token count | All resolve to files? | Mixed? | Mode |
-|-------------|----------------------|--------|------|
+| Argument token count | All resolve to files? | Mixed? | Mode |
+|----------------------|----------------------|--------|------|
 | 0 | — | — | **No-arg mode** (existing v1.7.1) — orchestrate open epics in the backlog. |
 | 1 | yes | — | **Single-spec mode** (existing v1.7.1) — scaffold + orchestrate this one PRD. |
 | 1 | no | — | **Repo-identifier mode** (existing v1.7.1, GitHub only) — orchestrate the repo's open epics. |
-| 2 | exactly one is a file, the other is not | — | **Single-spec + repo mode** (existing v1.7.1, GitHub only) — scaffold the PRD into the named repo, orchestrate only that PRD's epics. |
+| Exactly 2 | exactly one is a file, the other is not | — | **Single-spec + repo mode** (existing v1.7.1, GitHub only) — scaffold the PRD into the named repo, orchestrate only that PRD's epics. |
 | 2+ | yes (all tokens are paths to existing files) | — | **Sequential multi-path mode** (new) — see "Sequential Multi-Path Mode" section. |
-| 2+ | no | yes (mix of files and non-files) | **ERROR.** Abort with a clear message listing which tokens are paths and which are not. Mixed argument lists are unsupported. |
+| 2+ | no (all tokens are non-files) | — | **ERROR.** Multi-repo invocation is unsupported. Abort with a message listing the repo identifiers offered and noting that exactly one repo identifier is permitted per invocation. |
+| 2+ | mixed (some files, some non-files, AND not the exactly-2 single-spec+repo case above) | yes | **ERROR.** Abort with a clear message listing which tokens are paths and which are not. Mixed argument lists outside the single-spec+repo shape are unsupported. |
 
 ### Flag Parsing
 
