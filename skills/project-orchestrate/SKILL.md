@@ -66,13 +66,76 @@ Run autonomously on invocation. Standing Authorizations cover the normal lifecyc
 2. **A repo identifier** (e.g., `owner/repo`, GitHub mode only) — orchestrate **all open epics and stories** already on the project board. No scaffolding step.
 3. **A PRD file path + repo identifier** (e.g., `path/to/prd.md owner/repo`, GitHub mode only) — scaffold the PRD into the specified repo, then orchestrate only those epics/stories.
 4. **Nothing** — GitHub mode: detect the repo from the current git remote and orchestrate all open epics/stories. Local mode: orchestrate all open epics/stories in the configured backlog directory.
-
-**How to distinguish:** If an argument is a path to an existing file, treat it as a PRD. Otherwise treat it as a repo identifier (GitHub mode only).
+5. **Multiple PRD paths** (e.g., `spec-1.md spec-2.md spec-3.md`) — sequential per-spec orchestration. Each spec receives its own complete orchestration (Phase 1 → Phase 2 → Phase 3 → ADR → state cleanup) end-to-end before the next begins. See **Input Parsing and Mode Detection** below.
 
 ### Scope Rules
 
 - **Phase 1 (Epic Completion Loop):** When a PRD is provided, only execute epics/stories that were created from that PRD. In GitHub mode, record the milestone numbers and issue numbers. In local mode, record the epic directory names and story file paths. When no PRD is provided, execute all open epics/stories.
 - **Phase 2 (Emulation Hardening Loop):** Always applies to the **entire codebase** regardless of whether a PRD was provided. Emulation validates the whole project, not just the new work.
+
+---
+
+## Input Parsing and Mode Detection
+
+Before any orchestration work begins, classify the invocation into one of the modes below and announce the decision. The classification depends on how many tokens are in `$ARGUMENTS` and how many of them resolve to existing files on disk.
+
+### Mode Classification
+
+Apply these rules in order; the first match wins.
+
+| Token count | All resolve to files? | Mixed? | Mode |
+|-------------|----------------------|--------|------|
+| 0 | — | — | **No-arg mode** (existing v1.7.1) — orchestrate open epics in the backlog. |
+| 1 | yes | — | **Single-spec mode** (existing v1.7.1) — scaffold + orchestrate this one PRD. |
+| 1 | no | — | **Repo-identifier mode** (existing v1.7.1, GitHub only) — orchestrate the repo's open epics. |
+| 2 | exactly one is a file, the other is not | — | **Single-spec + repo mode** (existing v1.7.1, GitHub only) — scaffold the PRD into the named repo, orchestrate only that PRD's epics. |
+| 2+ | yes (all tokens are paths to existing files) | — | **Sequential multi-path mode** (new) — see "Sequential Multi-Path Mode" section. |
+| 2+ | no | yes (mix of files and non-files) | **ERROR.** Abort with a clear message listing which tokens are paths and which are not. Mixed argument lists are unsupported. |
+
+### Flag Parsing
+
+`/project-orchestrate` accepts the following flags. They may appear in any position within `$ARGUMENTS`:
+
+- **`--skip-on-pause`** (default off) — in sequential multi-path mode, a spec whose orchestration pauses on a safety gate is marked `skipped`, its in-progress state file is archived with `.skipped.md` suffix, and the queue advances to the next spec. Without this flag (the default), the queue pauses and waits for the user to resolve the gate before re-invocation.
+- **`--merged`** (default off) — when set with 2+ PRD paths, treat the inputs as one combined multi-spec project using legacy best-effort behavior. Emits a deprecation warning that formal merged semantics are not yet specified. Prefer the sequential default unless merged behavior is explicitly required.
+
+The flags are orthogonal: pass either, both, or neither.
+
+Unknown flags or invalid flag values MUST cause the skill to abort with an error BEFORE starting any orchestration work. Example: `--mode=fast` is unknown; abort and list the supported flags.
+
+### Glob Expansion
+
+Modern shells expand globs (e.g., `docs/specs/*.md`) before passing to Claude Code, so the skill typically sees pre-expanded paths. If `$ARGUMENTS` arrives with literal glob characters (`*`, `?`, `[...]`) still present, the skill MUST expand the glob itself BEFORE applying mode classification.
+
+### Announcement (Mandatory)
+
+Before any orchestration work begins, announce the chosen mode and the count of specs (for multi-path) so the user understands what's about to happen:
+
+```
+Multi-path orchestration mode: 3 specs detected.
+
+Dependency graph: no depends_on declarations — using argument order.
+Execution order:
+  1. spec-1.md
+  2. spec-2.md
+  3. spec-3.md
+
+Flags: none.
+
+Starting Spec 1/3 — spec-1.md
+```
+
+For single-spec, repo-identifier, or no-arg modes, the announcement is the existing v1.7.1 startup summary; no new format required.
+
+### Routing
+
+- **Sequential multi-path mode** → run Dependency Resolution (next subsection), then invoke the per-spec wrapper documented in **Sequential Multi-Path Mode**.
+- **Merged mode** (with `--merged`) → see **Sequential Multi-Path Mode → Merged Mode (Opt-In)**.
+- **All other modes** → continue with the existing State Management and Phase 1 sections unchanged.
+
+### Dependency Resolution
+
+(Documented in the next subsection — see Dependency Resolution.)
 
 ---
 

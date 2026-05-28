@@ -1,7 +1,7 @@
 ---
 title: Insert Input Parsing and Mode Detection section into project-orchestrate
 epic: mode-detection
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 5
@@ -10,13 +10,12 @@ labels:
   - executor:claude
   - P1-high
   - epic:mode-detection
-  - ready-for-work
 persona: impl
 blocked_by:
   - foundation/001
 blocks:
   - dependency-resolution/001
-sprint: null
+sprint: 2
 ---
 
 ## Objective
