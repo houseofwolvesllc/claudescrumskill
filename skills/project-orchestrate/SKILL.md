@@ -11,7 +11,8 @@ Fully autonomous project lifecycle driver. Plans sprints, executes stories via p
 
 ## Before You Start
 
-1. Read `../shared/references/CONVENTIONS.md` for all project management standards. Follow these conventions exactly. Pay particular attention to **Epic Structure → Design-Spike Epic** — orchestration honors the design-spike epic's gating, so implementation work in a scoped run does not begin until the design-spike epic completes.
+1. Read `../shared/references/CONVENTIONS.md` for all project management standards. Follow these conventions exactly. Pay particular attention to **Epic Structure → Design-Spike Epic** — orchestration honors the design-spike epic's gating, so implementation work in a scoped run does not begin until the design-spike epic completes. Also note **Frontmatter Fields → PRD Document Frontmatter** — the `depends_on` field controls inter-spec execution order in sequential multi-path mode.
+1a. **Multi-path mode and new flags:** when invoked with 2+ existing-file paths, `/project-orchestrate` runs in sequential multi-path mode (each spec receives its own complete orchestration end-to-end). Two new flags are accepted: `--skip-on-pause` (default off; advance the queue when a spec hits a safety gate instead of pausing) and `--merged` (default off; treat multi-path inputs as one combined legacy multi-spec project with a deprecation warning). See **Input Parsing and Mode Detection** for the full classification and **Sequential Multi-Path Mode** for execution details.
 2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` and `paths.context` values (`paths.context` defaults to `.claude-scrum-skill/context` and is where Step 3 subagents look for per-epic CONTEXT.md files). Read `../shared/references/PROVIDERS.md` for provider-specific API commands when using a remote provider.
 3. Read the project's `CLAUDE.md` (if it exists) for project-specific rules. **All subagents you spawn must also read and follow `CLAUDE.md`** — include this instruction explicitly in every subagent prompt.
 4. Read `../shared/references/PERSONAS.md` for role preambles. When spawning
@@ -66,13 +67,163 @@ Run autonomously on invocation. Standing Authorizations cover the normal lifecyc
 2. **A repo identifier** (e.g., `owner/repo`, GitHub mode only) — orchestrate **all open epics and stories** already on the project board. No scaffolding step.
 3. **A PRD file path + repo identifier** (e.g., `path/to/prd.md owner/repo`, GitHub mode only) — scaffold the PRD into the specified repo, then orchestrate only those epics/stories.
 4. **Nothing** — GitHub mode: detect the repo from the current git remote and orchestrate all open epics/stories. Local mode: orchestrate all open epics/stories in the configured backlog directory.
-
-**How to distinguish:** If an argument is a path to an existing file, treat it as a PRD. Otherwise treat it as a repo identifier (GitHub mode only).
+5. **Multiple PRD paths** (e.g., `spec-1.md spec-2.md spec-3.md`) — sequential per-spec orchestration. Each spec receives its own complete orchestration (Phase 1 → Phase 2 → Phase 3 → ADR → state cleanup) end-to-end before the next begins. See **Input Parsing and Mode Detection** below.
 
 ### Scope Rules
 
 - **Phase 1 (Epic Completion Loop):** When a PRD is provided, only execute epics/stories that were created from that PRD. In GitHub mode, record the milestone numbers and issue numbers. In local mode, record the epic directory names and story file paths. When no PRD is provided, execute all open epics/stories.
 - **Phase 2 (Emulation Hardening Loop):** Always applies to the **entire codebase** regardless of whether a PRD was provided. Emulation validates the whole project, not just the new work.
+
+---
+
+## Input Parsing and Mode Detection
+
+Before any orchestration work begins, classify the invocation into one of the modes below and announce the decision. The classification depends on how many tokens are in `$ARGUMENTS` and how many of them resolve to existing files on disk.
+
+### Mode Classification
+
+**Pre-classification step:** Before applying the table below, separate **flag tokens** (those starting with `--`, e.g., `--skip-on-pause`, `--merged`) from **argument tokens**. Count and classify only the argument tokens. Flags are validated and consumed separately by the Flag Parsing subsection below; they do not contribute to the token count or the file/non-file determination.
+
+Apply these rules in order; the first match wins.
+
+| Argument token count | All resolve to files? | Mixed? | Mode |
+|----------------------|----------------------|--------|------|
+| 0 | — | — | **No-arg mode** (existing v1.7.1) — orchestrate open epics in the backlog. |
+| 1 | yes | — | **Single-spec mode** (existing v1.7.1) — scaffold + orchestrate this one PRD. |
+| 1 | no | — | **Repo-identifier mode** (existing v1.7.1, GitHub only) — orchestrate the repo's open epics. |
+| Exactly 2 | exactly one is a file, the other is not | — | **Single-spec + repo mode** (existing v1.7.1, GitHub only) — scaffold the PRD into the named repo, orchestrate only that PRD's epics. |
+| 2+ | yes (all tokens are paths to existing files) | — | **Sequential multi-path mode** (new) — see "Sequential Multi-Path Mode" section. |
+| 2+ | no (all tokens are non-files) | — | **ERROR.** Multi-repo invocation is unsupported. Abort with a message listing the repo identifiers offered and noting that exactly one repo identifier is permitted per invocation. |
+| 2+ | mixed (some files, some non-files, AND not the exactly-2 single-spec+repo case above) | yes | **ERROR.** Abort with a clear message listing which tokens are paths and which are not. Mixed argument lists outside the single-spec+repo shape are unsupported. |
+
+### Flag Parsing
+
+`/project-orchestrate` accepts the following flags. They may appear in any position within `$ARGUMENTS`:
+
+- **`--skip-on-pause`** (default off) — in sequential multi-path mode, a spec whose orchestration pauses on a safety gate is marked `skipped`, its in-progress state file is archived with `.skipped.md` suffix, and the queue advances to the next spec. Without this flag (the default), the queue pauses and waits for the user to resolve the gate before re-invocation.
+- **`--merged`** (default off) — when set with 2+ PRD paths, treat the inputs as one combined multi-spec project using legacy best-effort behavior. Emits a deprecation warning that formal merged semantics are not yet specified. Prefer the sequential default unless merged behavior is explicitly required.
+
+The flags are orthogonal: pass either, both, or neither.
+
+Unknown flags or invalid flag values MUST cause the skill to abort with an error BEFORE starting any orchestration work. Example: `--mode=fast` is unknown; abort and list the supported flags.
+
+### Glob Expansion
+
+Modern shells expand globs (e.g., `docs/specs/*.md`) before passing to Claude Code, so the skill typically sees pre-expanded paths. If `$ARGUMENTS` arrives with literal glob characters (`*`, `?`, `[...]`) still present, the skill MUST expand the glob itself BEFORE applying mode classification.
+
+### Announcement (Mandatory)
+
+Before any orchestration work begins, announce the chosen mode and the count of specs (for multi-path) so the user understands what's about to happen:
+
+```
+Multi-path orchestration mode: 3 specs detected.
+
+Dependency graph: no depends_on declarations — using argument order.
+Execution order:
+  1. spec-1.md
+  2. spec-2.md
+  3. spec-3.md
+
+Flags: none.
+
+Starting Spec 1/3 — spec-1.md
+```
+
+For single-spec, repo-identifier, or no-arg modes, the announcement is the existing v1.7.1 startup summary; no new format required.
+
+### Routing
+
+- **Sequential multi-path mode** → run Dependency Resolution (next subsection), then invoke the per-spec wrapper documented in **Sequential Multi-Path Mode**.
+- **Merged mode** (with `--merged`) → see **Sequential Multi-Path Mode → Merged Mode (Opt-In)**.
+- **All other modes** → continue with the existing State Management and Phase 1 sections unchanged.
+
+### Dependency Resolution
+
+Applies only to sequential multi-path mode (and merged mode if dependencies need to inform internal ordering). Runs after Mode Classification but BEFORE any spec executes.
+
+#### `depends_on` Frontmatter
+
+Each PRD/spec MAY declare an optional `depends_on` field in its YAML frontmatter. The value is a YAML list of paths or basenames. See `CONVENTIONS.md` → Frontmatter Fields → PRD Document Frontmatter for the full convention.
+
+```yaml
+---
+title: My Spec
+depends_on:
+  - other-spec.md            # basename match against other args
+  - subdir/another-spec.md   # path match relative to this spec's directory
+---
+```
+
+#### Path Resolution
+
+For each entry in a spec's `depends_on` list:
+
+1. Try interpreting the entry as a path relative to the declaring spec's own directory. If it canonicalizes to one of the specs in the current invocation's argument list (compared by canonical absolute path), the dependency resolves.
+2. If step 1 fails, try interpreting the entry as a basename match against the basenames (filename without directory) of the argument-list specs. If exactly one spec in the list has a matching basename, the dependency resolves.
+3. If neither step 1 nor step 2 resolves to a spec in the current invocation's argument list, ABORT the run with a clear error message naming the unresolved entry. Do NOT start any spec. Silent ignoring of unresolved dependencies would lead to subtle wrong-order execution.
+
+#### Dependency Graph Construction
+
+After resolving every spec's `depends_on` entries, build a directed acyclic graph (DAG):
+
+- Nodes: each spec in the argument list.
+- Edges: from depended-upon spec → dependent spec. (If spec-B has `depends_on: [spec-A.md]`, the edge is `spec-A → spec-B`, meaning A must complete before B.)
+
+#### Cycle Detection
+
+Detect cycles using the standard algorithm (e.g., DFS with a visiting-set). A cycle includes:
+
+- Two-node cycles: `A → B → A`.
+- Longer cycles: `A → B → C → A`.
+- Self-loops: a spec declaring `depends_on: [itself.md]`.
+
+If any cycle is detected, ABORT with the following error format BEFORE starting any spec:
+
+```
+ERROR: Dependency cycle detected. No specs were started.
+
+Cycle members:
+  spec-a.md → depends_on: spec-b.md
+  spec-b.md → depends_on: spec-a.md
+
+Resolve the cycle (remove one of the declarations) and re-run.
+```
+
+#### Missing-Dependency Detection
+
+If any `depends_on` entry references a path that does not appear in the current invocation's argument list (after path resolution per the rules above), ABORT with the following error format BEFORE starting any spec:
+
+```
+ERROR: Dependency not in argument list. No specs were started.
+
+Missing dependency:
+  spec-b.md declares depends_on: [spec-a.md]
+  spec-a.md is not present in this invocation.
+
+Either add spec-a.md to the invocation, or remove the depends_on declaration in spec-b.md.
+```
+
+#### Topological Sort with Stable Tie-Break
+
+Once the graph passes cycle and missing-dependency checks, topologically sort the specs. Tie-break: when two specs have no dependency relationship between them, the one appearing earlier in the original `$ARGUMENTS` order executes first. The sort MUST be stable.
+
+#### No-`depends_on` Fallback
+
+If NO spec declares `depends_on`, execution order is simply the order tokens appear in `$ARGUMENTS`. No graph construction or topological sort is performed (or, equivalently, an empty graph topo-sorts to the input order).
+
+#### Pre-Execution Validation Order
+
+All validation runs BEFORE any spec's orchestration begins (NFR-3):
+
+1. Mixed-argument detection (per Mode Classification).
+2. Flag validation (unknown flags abort).
+3. Glob expansion (if needed).
+4. `depends_on` parsing and path resolution.
+5. Cycle detection.
+6. Missing-dependency detection.
+7. Topological sort.
+
+Only after all of these pass does the per-spec wrapper start invoking the per-spec orchestration.
 
 ---
 
@@ -744,6 +895,217 @@ run starts with a clean slate:
 ```bash
 rm -f .claude-scrum-skill/orchestration-state.md
 ```
+
+**In multi-path mode, Step 17 is suppressed.** The multi-path wrapper handles per-spec state file archival with a slug-suffixed name instead — see Sequential Multi-Path Mode → Per-Spec State File Lifecycle.
+
+---
+
+## Sequential Multi-Path Mode
+
+Applies when Mode Classification selected sequential multi-path mode (2+ tokens, all paths to existing files, `--merged` not set). This section is the wrapper that invokes the existing single-spec orchestration (Phases 1-3 + Step 16 + Step 17, as documented above) once per spec, in the order determined by Dependency Resolution.
+
+### Per-Spec Loop
+
+For each spec in the topologically-sorted execution order:
+
+1. Update the queue state file (see below): mark this spec's row as `in-progress`, record `Started` timestamp.
+2. Invoke the full single-spec orchestration against this spec. This is the existing v1.7.1 flow — Phase 1 (Epic Completion Loop, including scaffolding via `/project-scaffold`), Phase 2 (Emulation Hardening Loop), Phase 3 (Project Cleanup), Step 16 (ADR Update). Step 17 (state file cleanup) is **suppressed** in multi-path mode; the wrapper handles archival instead.
+3. On the spec's natural completion: archive `.claude-scrum-skill/orchestration-state.md` to `.claude-scrum-skill/orchestration-state-<spec-slug>.previous.md` BEFORE the next spec begins. Update the queue state file: mark this spec's row as `completed`, record `Completed` timestamp, update aggregate stats.
+4. On the spec's safety-gate pause:
+   - **Without `--skip-on-pause`** (default): the per-spec state file remains at `.claude-scrum-skill/orchestration-state.md` with `Status: paused`. Update the queue state file: mark this spec's row as `paused`, set queue `Status: paused`. Exit the wrapper. The remaining specs in the queue are NOT started. The user resolves the gate, re-invokes `/project-orchestrate` with the same arguments, and the queue resumes from this spec.
+   - **With `--skip-on-pause`**: archive `.claude-scrum-skill/orchestration-state.md` to `.claude-scrum-skill/orchestration-state-<spec-slug>.skipped.md`. Update the queue state file: mark this spec's row as `skipped`, record the pause reason. Continue to the next spec.
+5. Per-spec orchestration runs to completion (or pause) before the next spec begins — no interleaving of sprints, no concurrent execution.
+
+### Spec Slug Derivation
+
+A spec's slug is derived from its filename: `basename(path, ".md")`.
+
+- `docs/specs/20260527_215752_multi_spec_sequential_orchestration.md` → `20260527_215752_multi_spec_sequential_orchestration`
+- `spec-a.md` → `spec-a`
+
+If two specs in the same invocation produce the same slug (e.g., one is `foo/spec.md`, another is `bar/spec.md`), ABORT before starting any spec — slug collisions would clobber each other's archived state files. Error format:
+
+```
+ERROR: Spec slug collision. No specs were started.
+
+Colliding specs:
+  foo/spec.md → slug "spec"
+  bar/spec.md → slug "spec"
+
+Rename one of the specs so basenames differ, then re-run.
+```
+
+### Per-Spec State File Lifecycle
+
+| Event | State file action |
+|-------|-------------------|
+| Spec starts | Per-spec orchestration creates `.claude-scrum-skill/orchestration-state.md` (existing v1.7.1 behavior). |
+| Spec completes naturally | Wrapper renames to `.claude-scrum-skill/orchestration-state-<slug>.previous.md`. |
+| Spec pauses, no `--skip-on-pause` | File remains at canonical location with `Status: paused`. Queue exits. |
+| Spec pauses, with `--skip-on-pause` | Wrapper renames to `.claude-scrum-skill/orchestration-state-<slug>.skipped.md`. Queue advances. |
+| Resume from paused state | Per-spec orchestration reads `.claude-scrum-skill/orchestration-state.md` and resumes (existing v1.7.1 behavior). The wrapper resumes the queue from this spec's position based on the queue state file. |
+
+Single-spec mode state file lifecycle is unchanged from v1.7.1 — no slug suffix, no queue file. Step 17's `rm -f` runs as it always did. Only multi-path mode uses the slug-suffix archival and suppresses Step 17.
+
+### Queue State File
+
+Multi-path mode maintains a queue state file at `.claude-scrum-skill/orchestration-queue-state.md` tracking the entire run. The file is human-readable markdown.
+
+**Structure:**
+
+```markdown
+# Orchestration Queue State
+
+## Meta
+- **Mode:** sequential | merged
+- **Status:** running | paused | completed
+- **Started:** <ISO timestamp>
+- **Last Updated:** <ISO timestamp>
+- **Flags:** --skip-on-pause=<true|false>, --merged=<true|false>
+
+## Specs (resolved execution order)
+| # | Spec Path | Slug | Status | Started | Completed | State File Archive |
+|---|-----------|------|--------|---------|-----------|--------------------|
+| 1 | docs/specs/spec-a.md | spec-a | completed | <ts> | <ts> | orchestration-state-spec-a.previous.md |
+| 2 | docs/specs/spec-b.md | spec-b | in-progress | <ts> | — | orchestration-state.md (live) |
+| 3 | docs/specs/spec-c.md | spec-c | pending | — | — | — |
+
+## Dependency Graph
+- spec-c depends_on spec-a
+- spec-b depends_on spec-a
+(or "no dependencies declared" if empty)
+
+## Aggregate (updated as specs complete)
+- **Total specs:** N
+- **Completed:** N
+- **Paused:** N (current: <spec-slug>, if any)
+- **Skipped:** N
+- **Pending:** N
+- **Total stories delivered (across completed specs):** N
+- **Total sprints executed:** N
+- **Total ADRs created:** N
+
+## Log
+- [<ts>] Multi-path run started — 3 specs in scope
+- [<ts>] Dependency graph resolved — execution order: spec-a, spec-b, spec-c
+- [<ts>] Spec 1/3 (spec-a) started
+- [<ts>] Spec 1/3 (spec-a) completed — 12 stories, 3 sprints
+- [<ts>] Spec 2/3 (spec-b) started
+```
+
+**Lifecycle:**
+
+- Created at multi-path mode start (after Mode Classification, Flag Parsing, Glob Expansion, and Dependency Resolution all pass).
+- Updated after every spec status transition: pending → in-progress → completed | paused | skipped.
+- On clean completion (all specs `completed` or `skipped`, none `paused`): renamed to `orchestration-queue-state.previous.md`. The wrapper emits the Cumulative Summary.
+- On paused run: remains in place with `Status: paused` and the paused spec identified. Resume continues from the paused spec.
+
+**On startup**, check for an existing `.claude-scrum-skill/orchestration-queue-state.md`:
+
+- `Status: running` → resume from the recorded position (autonomous default).
+- `Status: paused` → resume from the recorded position. The paused spec's per-spec state file is read by its own resume logic.
+- `Status: completed` → rename to `orchestration-queue-state.previous.md` and start a fresh run.
+- No file → initialize a new queue state file.
+
+Never prompt. Same autonomous-default discipline as the single-spec state file (see Default Operating Mode).
+
+### Safety-Gate Pause Announcements
+
+**Default (without `--skip-on-pause`):**
+
+```
+[Spec 2/3] spec-b.md — paused on safety gate.
+
+Pause reason: 3rd consecutive hardening run produced 2 critical findings
+(see .claude-scrum-skill/reports/emulation-report/ISSUES.md).
+
+Remaining specs (1) are not started. Queue state preserved at
+.claude-scrum-skill/orchestration-queue-state.md.
+
+Resolve the findings and re-invoke /project-orchestrate with the same
+arguments to resume. The queue picks up at spec-b.md.
+```
+
+**With `--skip-on-pause`:**
+
+```
+[Spec 2/3] spec-b.md — paused on safety gate. --skip-on-pause set; marking skipped.
+
+Skipped reason: 3rd consecutive hardening run produced 2 critical findings.
+State archived to .claude-scrum-skill/orchestration-state-spec-b.skipped.md.
+
+Continuing to Spec 3/3 — spec-c.md
+```
+
+### Resume Semantics
+
+A multi-path run paused on a safety gate is resumed by re-invoking `/project-orchestrate` with the same argument list. The queue state file's recorded execution order takes precedence — even if a spec's `depends_on` frontmatter changed between attempts, the resumed run uses the order recorded at the original run's start. This prevents subtle ordering shifts mid-run.
+
+Completed specs are NOT re-executed on resume. The wrapper skips entries marked `completed` and `skipped`, resumes the entry marked `paused` (handing off to the per-spec orchestration's own resume logic), and continues with `pending` entries afterward.
+
+### Cumulative Summary
+
+At the end of a multi-path run (all specs `completed` or `skipped`, none `paused`), emit a cumulative summary mirroring the existing single-spec completion summary structure, with a per-spec section plus an aggregate header.
+
+Format:
+
+```
+## Multi-Spec Orchestration Complete
+
+### Aggregate
+- Specs in queue: 3
+- Completed: 2 (spec-a, spec-c)
+- Skipped: 1 (spec-b, paused on 3rd hardening run; archived)
+- Total stories delivered: 27 (44 story points)
+- Total sprints: 7
+- Total ADRs created: 3
+- Total duration: 4h 12m
+
+### Per-Spec
+
+#### spec-a.md  ✅ Completed
+- 3 sprints, 12 stories, 18 points
+- Design-spike: yes (ADR-0007, 2 CONTEXT.md files)
+- Emulation runs: 1 (clean)
+- Cleanup: PASS
+- State archive: orchestration-state-spec-a.previous.md
+- ADR: docs/adrs/0007-spec-a-architecture.md
+
+#### spec-b.md  ⚠️ Skipped (paused, --skip-on-pause)
+- 2 sprints, 8 stories, 13 points completed before pause
+- Pause reason: 3rd hardening run produced 2 critical findings
+- State archive: orchestration-state-spec-b.skipped.md
+- Report: .claude-scrum-skill/reports/emulation-report/ISSUES.md
+
+#### spec-c.md  ✅ Completed
+- 4 sprints, 15 stories, 26 points
+- Design-spike: no (single epic)
+- Emulation runs: 2 (clean after hardening)
+- Cleanup: PASS
+- State archive: orchestration-state-spec-c.previous.md
+- ADR: docs/adrs/0008-spec-c-architecture.md
+```
+
+After emitting the summary, mark the queue `Status: completed` and rename `orchestration-queue-state.md` → `orchestration-queue-state.previous.md`.
+
+### Merged Mode (Opt-In)
+
+When `--merged` is set alongside 2+ PRD paths, the skill treats the inputs as one combined multi-spec project using legacy best-effort behavior — the pre-v1.8.0 path where the agent improvises merge policy at runtime (one combined scaffold call, one merged design-spike, one combined sprint cycle, one emulation, one cleanup, one ADR pass).
+
+Emit the following deprecation-style warning BEFORE proceeding:
+
+```
+WARNING: --merged is set. Multi-path inputs will be treated as one combined
+project with best-effort merge semantics. Formal merged behavior is not
+yet specified (deferred to a follow-up spec); results may be inconsistent
+run-to-run.
+
+If you want predictable per-spec isolation, drop --merged and re-run.
+
+Proceeding with merged mode...
+```
+
+Then run the legacy unified-multi-spec flow. The queue state file is still created (with `Mode: merged` in Meta) but tracks the merged invocation as a single combined orchestration rather than per-spec entries. Formal merged semantics — shared design-spike strategy, cross-spec dependency resolution, unified state file vs queue file — are deferred to a follow-up spec.
 
 ---
 

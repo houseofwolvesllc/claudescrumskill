@@ -6,16 +6,14 @@ Re-emulation after hardening run 1.
 
 | ID | Finding | Status |
 |----|---------|--------|
-| W1 | Trigger precedence contradiction (Mode Detection vs Input) | ✅ Resolved — Mode Detection list re-ordered to CLI flag → frontmatter → word-count, matching the Input section's stated precedence. |
-| W2 | Trigger precedence contradiction (Design-Spike Epic) | ✅ Resolved — Design-Spike Epic Trigger Evaluation re-ordered identically. Item 3 (global enable switch) now clearly notes it only applies when no override above already won. |
-| W3 | "Persona label" GitHub-mode-specific terminology | ✅ Resolved — Replaced with "Persona designation" with explicit local-mode vs remote-mode wording and references to CONVENTIONS.md and PERSONAS.md. |
-| W4 | CLI flags presume formal argument parser | ✅ Resolved — Added paragraph stating there is no formal parser, that the executing agent scans `$ARGUMENTS`, and that invalid/empty flag values fall through to the next trigger source. Also resolves Info finding I7 (invalid `--mode` value behavior). |
+| W1 | Mode Classification table missing "2+ tokens, all non-files" case | ✅ Resolved — Table now has a row covering 2+ non-file tokens (multi-repo invocation), specifying ABORT with a clear error listing the offered repo identifiers. Also tightened the mixed-args row to clarify it only applies outside the exactly-2 single-spec+repo case. |
+| W2 | Flag/arg disambiguation not explicit before mode classification | ✅ Resolved — New "Pre-classification step" paragraph at top of Mode Classification subsection explicitly states that flag tokens (starting with `--`) are separated from argument tokens before the table is applied; flags are validated by Flag Parsing subsection. Table header column renamed from "Token count" to "Argument token count" to reinforce. |
 
 ## New Findings
 
 🔴 Critical: 0
 🟡 Warning: 0
-🔵 Info: 0 (new — the 7 info-level findings from run 1 remain logged but unactioned per the orchestrate skill's rules)
+🔵 Info: 0 (new — the 5 info-level findings from run 1 remain logged but unactioned per the orchestrate skill's rules)
 
 ## Recommendation
 

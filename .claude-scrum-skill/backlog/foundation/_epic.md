@@ -2,11 +2,11 @@
 title: Foundation
 slug: foundation
 status: closed
-created: 2026-05-27T07:19:32Z
+created: 2026-05-28T05:04:12Z
 ---
 
 # Foundation
 
-Add the configuration keys, templates, and shared documentation that the two-pass scaffolding and design-spike features depend on. This epic blocks all other epics — nothing else can land until the foundation pieces exist.
+Document the new conventions and user-facing patterns before the orchestrate skill cross-references them. Two stories that touch different files (CONVENTIONS.md and README.md) and can run in parallel.
 
-Maps to **Phase 1 — Foundation** in the source spec (tasks 1-4).
+Maps to **Phase 1 — Foundation** in the source spec (tasks 1-2).
