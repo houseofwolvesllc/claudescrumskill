@@ -1,8 +1,8 @@
-# Emulation Findings — Run 1
+# Emulation Findings — Run 1 (Multi-Spec Sequential Orchestration)
 
-Scope: validate the Phase 1 work (two-pass scaffolding + design-spike epic + orchestrate integration + documentation) against the consumer workflows: scaffolding a small PRD, scaffolding a large PRD, executing stories that consume CONTEXT.md, and reading the README as a new user.
+Scope: validate the Phase 1 work (sequential multi-path mode + `depends_on` resolution + `--skip-on-pause` / `--merged` flags + queue state file) against the consumer workflows: invoking `/project-orchestrate` with multiple PRD paths, reading the new SKILL.md sections as a new user, reading the README invocation patterns table, executing per-spec orchestration through the new wrapper.
 
-The project is a markdown skill suite — no Dockerfiles, transpilers, IoC containers, or service-to-service payloads. Phase 2 categories 1, 2, 4, 5, and 6 from the emulation framework are N/A. Phase 2 category 3 (Configuration File Coverage) applies in a narrow sense (config keys vs documentation). Phase 3 categories are all N/A. The findings below come from cross-document consistency emulation: read each document as a different consumer role and flag every place where two documents disagree, a reference dangles, or a control surface is ambiguous.
+Project is a markdown skill suite — Phase 2 categories 1, 2, 4, 5, 6 from the emulation framework are N/A. Phase 3 categories all N/A. Phase 2 category 3 (Config Coverage) applies in a narrow sense (new flags vs documentation). Findings below come from cross-document consistency emulation: read each new section as a different consumer role and flag every place where two documents disagree, a reference dangles, or a control surface is ambiguous.
 
 ---
 
@@ -10,168 +10,90 @@ The project is a markdown skill suite — no Dockerfiles, transpilers, IoC conta
 
 None.
 
-The new functionality wires into the existing skills without introducing any break in the documented control flow. The integration seams (Mode Detection → per-backend procedure, design-spike injection → implementation epic gating, orchestrate Step 3 → CONTEXT.md read) all have explicit handoffs.
+The new functionality wires cleanly into the existing v1.7.1 single-spec orchestration. Multi-path mode is a wrapper that invokes the existing flow once per spec; all the integration seams (Mode Classification → Dependency Resolution → per-spec wrapper → state file archival → cumulative summary) have explicit handoffs.
 
 ---
 
 ## 🟡 Warning
 
-### W1. Trigger precedence contradicts between Input section and Mode Detection section
+### W1. Mode Classification table missing the "2+ tokens, all non-files" case
 
-**Category:** Documentation/Internal-Consistency
-**Files:** `skills/project-scaffold/SKILL.md`
+**Category:** Specification/Completeness
+**Files:** `skills/project-orchestrate/SKILL.md` (Input Parsing and Mode Detection → Mode Classification)
 
-The "Input → CLI Flags" subsection (line 59) states:
+The classification table covers 0 tokens, 1 token (file), 1 token (non-file), 2 tokens (one file one non-file), 2+ tokens (all files), and 2+ tokens (mixed). It does NOT address the case of **2+ tokens, all non-files** — e.g., `/project-orchestrate owner/repo-a owner/repo-b`. An executing agent would have no documented rule for this case.
 
-> Trigger precedence (highest first): CLI flag → PRD frontmatter → config / heuristic.
+**Likely interpretation under ambiguity:** agent picks the first arg and treats it as repo-identifier mode, ignoring the rest — or worse, attempts to handle both and fails partway.
 
-The "Mode Detection → Trigger Evaluation" subsection (lines 72-85) lists triggers in this order with the rule "first match wins":
-
-1. PRD frontmatter override
-2. CLI flag
-3. Word count heuristic
-
-These contradict. Under "first match wins" with frontmatter at position 1, frontmatter would win over a CLI flag. But the Input section explicitly says CLI flag is highest priority.
-
-A user setting `scaffold_mode: single-pass` in frontmatter and then passing `--mode two-pass` on the command line gets unpredictable behavior depending on which section the executing agent followed.
-
-**Impact:** Ambiguous control surface — the documented precedence is contradictory. Different invocations of the same scaffold against the same inputs could produce different modes.
-
-**Recommendation:** Pick one ordering (CLI flag highest is the more conventional choice — CLI is a deliberate per-invocation override of frontmatter defaults) and update both sections to match. The "Trigger Evaluation" list should be re-ordered so the highest-precedence trigger appears first.
+**Recommendation:** Add a table row: "2+ tokens, all non-files → **ERROR.** Multi-repo invocation is unsupported. Abort with a message listing the repo identifiers and noting that exactly one repo identifier is permitted."
 
 ---
 
-### W2. Same trigger precedence contradiction in Design-Spike Epic section
+### W2. Flag/arg disambiguation not explicit before mode classification
 
-**Category:** Documentation/Internal-Consistency
-**Files:** `skills/project-scaffold/SKILL.md`
+**Category:** Specification/Order-Of-Operations
+**Files:** `skills/project-orchestrate/SKILL.md` (Input Parsing and Mode Detection → Flag Parsing + Mode Classification)
 
-The Design-Spike Epic "Trigger Evaluation" subsection (lines 252-269) has the identical contradiction with the Input section's precedence statement. Frontmatter is listed at position 1 (first match wins → frontmatter wins) but the Input section says CLI flag should win.
+The Flag Parsing subsection says "flags may appear in any position within `$ARGUMENTS`". The Mode Classification table counts "tokens" without explicitly stating that flags are stripped from the token count before classification. An executing agent could plausibly count `--skip-on-pause` as one of the "2+ tokens" and miscalibrate the classification — e.g., `/project-orchestrate --skip-on-pause spec.md` (single spec + one flag) could be misread as a 2-token invocation triggering some mode.
 
-**Impact:** Same as W1, applied to the `design_spike` control rather than `scaffold_mode`.
-
-**Recommendation:** Same fix as W1 — re-order both Trigger Evaluation lists so the canonical precedence (CLI flag highest, frontmatter second, config/heuristic third) matches the Input section's statement.
-
----
-
-### W3. "Persona label" terminology in Pass 2 elaboration spec is GitHub-mode-specific
-
-**Category:** Cross-Backend-Consistency
-**Files:** `skills/project-scaffold/SKILL.md` (Two-Pass Procedure → Pass 2 — Per-Epic Elaboration)
-
-Line 184 lists what each Pass 2 subagent produces, including:
-
-> - Persona label
-
-In GitHub mode, persona is a label (e.g., `persona:research`). In local mode, persona is a frontmatter field (`persona: research`). In Jira and Trello modes, it's also a label-like field. The phrasing "Persona label" reads as GitHub-mode-only and could lead a local-mode Pass 2 subagent to write a literal `labels: [..., persona:research]` entry into frontmatter instead of `persona: research`.
-
-**Impact:** A Pass 2 subagent operating in local mode that follows the wording literally may produce malformed story frontmatter that downstream `/sprint-plan` and `/project-orchestrate` skills don't recognize. The persona routing logic in `project-orchestrate/SKILL.md` (lines 222-223) explicitly differentiates: "GitHub mode: Check the story's labels for a `persona:*` label. Local mode: Read the `persona` field from the story file's frontmatter."
-
-**Recommendation:** Change "Persona label" to "Persona designation (label in GitHub/Trello/Jira modes; `persona` frontmatter field in local mode — see CONVENTIONS.md and PERSONAS.md)".
-
----
-
-### W4. CLI flags presume a formal argument parser that does not exist
-
-**Category:** Implementation/Reality-Gap
-**Files:** `skills/project-scaffold/SKILL.md` (Input → CLI Flags; Mode Detection; Design-Spike Epic)
-
-The documentation introduces `--mode single-pass | two-pass` and `--design-spike | --no-design-spike` CLI flags as a trigger source. But Claude Code skills are invoked via a free-text `$ARGUMENTS` string; there is no formal CLI parser that extracts flags. The "flags" are aspirational — they only work if the executing agent recognizes them in the argument string.
-
-This may surprise users who pass the flags expecting consistent behavior, and may inconsistently apply across runs depending on how the executing agent interprets the args.
-
-**Impact:** Aspirational documented behavior may not be reliably realized. Users may assume a hard contract where there's only a convention.
-
-**Recommendation:** Either (a) add explicit guidance in the CLI Flags section that the executing agent must scan `$ARGUMENTS` for these strings and treat them as overrides; or (b) remove the CLI flag mechanism and rely solely on PRD frontmatter + config + word-count heuristic. Option (a) preserves the user-facing affordance with a clarifying note; option (b) simplifies but loses per-invocation override.
+**Recommendation:** Add a "Pre-Classification Step" sentence at the top of Mode Classification: "Before applying the table below, separate flag tokens (those starting with `--`) from argument tokens. Count and classify only the argument tokens. Flags are validated separately by the Flag Parsing subsection."
 
 ---
 
 ## 🔵 Info
 
-### I1. Step 16 ADR numbering doesn't specify empty-set behavior
+### I1. Token-count wording "2 + one file/one non-file" doesn't address 3+ token PRD+repo case
 
-**Category:** Edge-Case/Documentation-Completeness
-**Files:** `skills/project-orchestrate/SKILL.md` (Step 16 — ADR Update)
+**Category:** Specification/Edge-Case
+**Files:** `skills/project-orchestrate/SKILL.md` (Mode Classification table)
 
-The instruction "Compute the next sequential ADR number as `max(existing_numbers) + 1`" doesn't handle the case where no ADRs exist (empty `<paths.adr>` directory or directory does not exist). `max()` on an empty set is undefined.
+The PRD+repo row says "Token count 2 + exactly one is a file". A user invoking `/project-orchestrate spec.md owner/repo extra-thing` (3 tokens, one file, two non-files) is undefined. Probably should abort, but the table doesn't say.
 
-**Recommendation:** Add "If no ADRs exist yet, start at `0001`." The first design-spike ADR on a fresh project hits this case immediately.
-
----
-
-### I2. Auto-injected Technical Context reference uses bracket syntax without URLs
-
-**Category:** Documentation/Output-Format
-**Files:** `skills/project-scaffold/SKILL.md` (Design-Spike Epic → Auto-Injection of References)
-
-The auto-injected line is documented as:
-
-> See [<paths.context>/<epic-slug>/CONTEXT.md] and [<paths.adr>/NNNN-<slug>.md] for shared architectural decisions.
-
-The `[...]` notation looks like markdown link syntax with a missing URL, which markdown renderers display as the bracketed text but without a link affordance. If the intent is paths-as-text, backticks would be clearer (`` `<paths.context>/<epic-slug>/CONTEXT.md` ``). If the intent is proper relative links, the form should be `[CONTEXT.md](<paths.context>/<epic-slug>/CONTEXT.md)`.
-
-**Recommendation:** Switch to backticks for the auto-injected reference — it's intended as a path reference for the implementing subagent to act on, not a clickable link.
+**Recommendation:** Tighten the row to "Token count = 2 AND exactly one is a file" so it's unambiguous that 3+ tokens with this shape do not match. The "mixed argument" abort rule then catches it.
 
 ---
 
-### I3. Idempotency Check local-mode glob uses bracket notation that reads as optional
+### I2. README example always shows `--merged` before args; SKILL.md says flags can appear anywhere
 
-**Category:** Documentation/Clarity
-**Files:** `skills/project-scaffold/SKILL.md` (Design-Spike Epic → Idempotency Check, local mode)
+**Category:** Documentation/Style-Consistency
+**Files:** `README.md` (Invocation Patterns), `skills/project-orchestrate/SKILL.md` (Flag Parsing)
 
-> Scan `<paths.backlog>/*/[_]epic.md` frontmatter for `epic_type: design-spike`.
+The README invocation table shows `/project-orchestrate --merged spec-1.md spec-2.md` — flag first. The SKILL.md Flag Parsing subsection states "flags may appear in any position". Both are correct, but a user reading the README first might infer flag-first is required.
 
-The `[_]` reads as a regex/glob character class meaning "optional underscore". The actual filename is `_epic.md` (no optional underscore). The bracket notation is misleading and a literal interpretation would scan both `epic.md` and `_epic.md` — only the latter exists.
-
-**Recommendation:** Change to `<paths.backlog>/*/_epic.md`.
+**Recommendation:** Add a one-line note under the README Invocation Patterns table: "Flags may appear before or after argument tokens; the table examples place them first by convention."
 
 ---
 
-### I4. Auto-Injection of References describes a step that lives in a different section
+### I3. ADR-0002 placeholder — orchestration-time ADR not yet created
 
-**Category:** Documentation/Structure
-**Files:** `skills/project-scaffold/SKILL.md`
+**Category:** Workflow/Self-Reference
+**Files:** N/A (will exist at `docs/adrs/0002-*.md` after Step 16)
 
-The "Auto-Injection of References" subsection lives inside the Design-Spike Epic section but says the injection "happens during Story Assembly, after Pass 2 produces stories but before per-backend creation runs." Story Assembly is a step inside the Two-Pass Procedure section (a different section earlier in the document). A reader following the document linearly has to jump back to understand where the injection actually fires.
+Step 16 of the orchestrate skill will create an ADR documenting the architectural decisions for this orchestration (multi-spec sequential mode, queue state file design, per-spec slug-suffixed archives). That ADR is not yet on disk because Step 16 runs after this emulation phase per the orchestrate flow. Listed here only for traceability — this is expected behavior, not a defect.
 
-**Recommendation:** Add a cross-reference note inside the Two-Pass Procedure → Story Assembly section: "If the design-spike epic is part of this scaffold (see Design-Spike Epic below), assembly also auto-injects a Technical Context reference into every implementation story — see Design-Spike Epic → Auto-Injection of References."
-
----
-
-### I5. CONVENTIONS.md uses bare `shared/templates/` path reference
-
-**Category:** Documentation/Path-Clarity
-**Files:** `skills/shared/references/CONVENTIONS.md` (Design-Spike Epic subsection)
-
-The design-spike subsection references the template at `skills/shared/templates/CONTEXT-template.md`. From the CONVENTIONS.md file's perspective, the relative path is `../templates/CONTEXT-template.md`. Other references in this file use `..` relative paths (e.g., `../shared/config.json` in SKILL.md files), so the bare reference is inconsistent with surrounding style.
-
-**Impact:** Low — the path is unambiguous within the repository context, but inconsistent with how other shared references are written.
-
-**Recommendation:** Either keep as-is (project-root-relative is also a valid reading) or normalize to `../templates/CONTEXT-template.md`.
+**Recommendation:** none — Step 16 will create it.
 
 ---
 
-### I6. Pass 2 failure stub stories are under-specified
+### I4. Dependency Resolution mentions "merged mode" interaction without elaboration
 
-**Category:** Failure-Handling/Behavior-Definition
-**Files:** `skills/project-scaffold/SKILL.md` (Two-Pass Procedure → Failure Handling, Pass 2 subagent failure)
+**Category:** Specification/Forward-Reference-Ambiguity
+**Files:** `skills/project-orchestrate/SKILL.md` (Dependency Resolution intro)
 
-The instruction "Generate placeholder stories for the affected epic with `status: needs-context` and a note explaining the Pass 2 failure" doesn't specify how many placeholder stories, what their titles should be, or what point/executor/persona values to use. Two different executing agents recovering from the same failure could produce structurally different stubs.
+The Dependency Resolution intro says: "Applies only to sequential multi-path mode (and merged mode if dependencies need to inform internal ordering)." The "if dependencies need to inform internal ordering" hedge is vague — merged mode is explicitly best-effort and its semantics are deferred. Either dependency resolution runs in merged mode or it doesn't.
 
-**Impact:** Recovery state is non-deterministic; user inspection of a degraded scaffold gives different shapes depending on which agent ran the recovery.
-
-**Recommendation:** Add specifics: "Generate exactly one placeholder story per epic with title `Needs Pass 2 elaboration: <epic-name>`, `points: 0`, `executor: human`, and a body section explaining the failure. The user re-runs scaffold or hand-completes after triage."
+**Recommendation:** Change to "Applies only to sequential multi-path mode. In merged mode, the legacy unified-multi-spec behavior is invoked instead and `depends_on` is not enforced (merged semantics, including dependency handling, are deferred to a follow-up spec)."
 
 ---
 
-### I7. Documented `--mode` flag is ambiguous on absence
+### I5. Queue state file Meta section doesn't include `--skip-on-pause` value when set
 
-**Category:** Documentation/Edge-Case
-**Files:** `skills/project-scaffold/SKILL.md` (Input → CLI Flags)
+**Category:** Documentation/Completeness
+**Files:** `skills/project-orchestrate/SKILL.md` (Sequential Multi-Path Mode → Queue State File)
 
-The flag is documented as `--mode single-pass | two-pass` (one value required). The documentation doesn't say what happens if the user passes `--mode` with no value, or with an invalid value (e.g., `--mode three-pass`). Reasonable behavior: ignore invalid flags and fall through to next trigger source; this should be stated.
+The Queue State File template Meta section shows `**Flags:** --skip-on-pause=<true|false>, --merged=<true|false>`. The template is correct, but the surrounding prose doesn't emphasize that the Meta section is the canonical record of which flags were active for this run — useful for post-mortem when a run was paused and resumed. Minor.
 
-**Recommendation:** Add a sentence to the CLI Flags section: "Invalid or empty `--mode` / `--design-spike` values are ignored, and the next trigger source in precedence applies."
+**Recommendation:** Add a sentence: "The Meta section records the flags active at run start. Resume uses the recorded flags, not the flags on the resume invocation — preventing accidental flag changes mid-run."
 
 ---
 
@@ -179,17 +101,17 @@ The flag is documented as `--mode single-pass | two-pass` (one value required). 
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Phase 1: Discovery | Complete | Roles: 4 consumer roles. Actions: 6 documented invocation paths (scaffold × 4 backends + orchestrate + sprint-plan). |
-| Phase 2: Integration Seams | Adapted | Categories 1, 2, 4, 5, 6 N/A (no Dockerfiles/transpilers/IoC/services/payloads). Category 3 (Config Coverage) verified — all new config keys documented in both SKILL.md "Before You Start" and README. |
+| Phase 1: Discovery | Complete | Roles: 3 consumer roles (multi-path invoker, dependency declarer, queue-state reader). Actions: 8 (6 mode classifications + 2 flag combinations). |
+| Phase 2: Integration Seams | Adapted | Categories 1, 2, 4, 5, 6 N/A (no Dockerfiles/transpilers/IoC/services/payloads). Category 3 (Config Coverage) verified — new flags documented in SKILL.md, CONVENTIONS.md, and README; new queue state file path consistent across SKILL.md sections. |
 | Phase 3: Layer Contracts | N/A | No application layers. |
-| Phase 4: Permutation Matrix | Implicit | 4 backends × 2 modes × 2 design-spike states = 16 conceptual scenarios. Two-Pass + Design-Spike sections describe handoff for all 16. |
+| Phase 4: Permutation Matrix | Implicit | 6 mode classes × 2 flag bools × N spec counts. Mode Detection section covers all 6 classes plus the error case. |
 | Phase 5: Walkthrough | Documentation-based | Read each new section as each consumer role; flag cross-section inconsistencies. |
 | Phase 6: Coverage Report | This file | |
 
 ## Findings Count
 
 - 🔴 Critical: 0
-- 🟡 Warning: 4
-- 🔵 Info: 7
+- 🟡 Warning: 2
+- 🔵 Info: 5
 
-All warnings are documentation-consistency issues, not behavioral defects. They are actionable in a single hardening pass — a few targeted edits to project-scaffold/SKILL.md plus one to project-orchestrate/SKILL.md.
+All warnings are specification clarity issues, not behavioral defects. Two targeted edits to `skills/project-orchestrate/SKILL.md` (Mode Classification table row + Flag/arg disambiguation sentence) resolve both warnings. Info findings can be addressed during normal future maintenance.
