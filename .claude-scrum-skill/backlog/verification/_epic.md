@@ -1,7 +1,7 @@
 ---
 title: Verification
 slug: verification
-status: open
+status: closed
 created: 2026-05-30T00:14:39Z
 ---
 
