@@ -1,7 +1,7 @@
 ---
 title: Rewrite project-scaffold Two-Pass Pass 2
 epic: skill-rewrites
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 3
@@ -9,7 +9,7 @@ labels: [type:story, executor:claude, P1-high, epic:skill-rewrites, ready-for-wo
 persona: impl
 blocked_by: [workflow-scripts/002]
 blocks: [release/001, release/002]
-sprint: null
+sprint: 3
 ---
 
 ## Objective

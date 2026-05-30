@@ -1,7 +1,7 @@
 ---
 title: Rewrite project-orchestrate Phase 1 Step 3 + Sequential Multi-Path Mode
 epic: skill-rewrites
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 5
@@ -9,7 +9,7 @@ labels: [type:story, executor:claude, P1-high, epic:skill-rewrites, ready-for-wo
 persona: impl
 blocked_by: [workflow-scripts/001, workflow-scripts/003]
 blocks: [release/001, release/002]
-sprint: null
+sprint: 3
 ---
 
 ## Objective

@@ -11,6 +11,7 @@ Fully autonomous project lifecycle driver. Plans sprints, executes stories via p
 
 ## Before You Start
 
+0. **v2.0.0 runtime check.** Confirm the Claude Code **Workflow tool** is available in this session. v2.0.0 invokes workflow scripts at `<skills-root>/_workflows/*.js` for sprint execution, Pass 2 epic elaboration, multi-spec queueing, emulation finding verification, and the review gate. If the Workflow tool is absent, abort with: "v2.0.0 requires the Claude Code Workflow tool. Update Claude Code, or install the v1.8.x fallback (`npm install --save-dev @houseofwolvesllc/claude-scrum-skill@1.8.1`)." Do not proceed.
 1. Read `../shared/references/CONVENTIONS.md` for all project management standards. Follow these conventions exactly. Pay particular attention to **Epic Structure → Design-Spike Epic** — orchestration honors the design-spike epic's gating, so implementation work in a scoped run does not begin until the design-spike epic completes. Also note **Frontmatter Fields → PRD Document Frontmatter** — the `depends_on` field controls inter-spec execution order in sequential multi-path mode.
 1a. **Multi-path mode and new flags:** when invoked with 2+ existing-file paths, `/project-orchestrate` runs in sequential multi-path mode (each spec receives its own complete orchestration end-to-end). Two new flags are accepted: `--skip-on-pause` (default off; advance the queue when a spec hits a safety gate instead of pausing) and `--merged` (default off; treat multi-path inputs as one combined legacy multi-spec project with a deprecation warning). See **Input Parsing and Mode Detection** for the full classification and **Sequential Multi-Path Mode** for execution details.
 2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` and `paths.context` values (`paths.context` defaults to `.claude-scrum-skill/context` and is where Step 3 subagents look for per-epic CONTEXT.md files). Read `../shared/references/PROVIDERS.md` for provider-specific API commands when using a remote provider.
@@ -381,94 +382,55 @@ After planning completes, update the state file with the sprint stories and thei
 
 ### Step 3: Story Execution
 
-Execute all `executor:claude` stories in the current sprint. Skip `executor:human` and `executor:cowork` stories — they will roll over to the next sprint automatically.
+Execute all `executor:claude` stories in the current sprint by invoking the **sprint_pipeline.js** workflow script. Skip `executor:human` and `executor:cowork` stories — they roll over to the next sprint automatically.
 
-**Parallel execution via Task subagents:**
+#### Path Resolution
 
-For stories with no unresolved dependencies, spawn parallel Task subagents (using the `Task` tool with `subagent_type: "Bash"` or `subagent_type: "general-purpose"` as appropriate). Each subagent receives:
+The workflow script ships at `<skills-root>/_workflows/sprint_pipeline.js`, where `<skills-root>` is the parent directory of this SKILL.md's parent. For a SKILL.md at `~/.claude/skills/project-orchestrate/SKILL.md`, the workflow script absolute path is `~/.claude/skills/_workflows/sprint_pipeline.js`. The same algorithm works for global, local, and plugin install layouts.
 
-**Persona resolution:** Before spawning each subagent, resolve its persona:
+#### Pre-spawn checks
 
-1. **GitHub mode:** Check the story's labels for a `persona:*` label (e.g., `persona:ops`, `persona:research`).
-   **Local mode:** Read the `persona` field from the story file's frontmatter.
-2. If found, load the matching preamble from `../shared/references/PERSONAS.md`.
-3. If no persona exists, use the `impl` preamble.
-4. If the persona references a name not defined in `PERSONAS.md`, fall back
-   to `impl` and log a warning.
+Before invoking the workflow:
 
-**Subagent prompt structure:**
+1. **Independence check.** Exclude stories whose `blocked_by` references unresolved blockers. Only pass ready stories to the workflow.
+2. **Persona resolution.** For each story, resolve its persona (`impl`, `ops`, `research`) from labels (GitHub/Trello/Jira) or the `persona` frontmatter field (local mode). Default to `impl`. Build a `personaPreambles` map from the preambles in `../shared/references/PERSONAS.md` to pass to the workflow.
+3. **Skip human/cowork stories.** Log them as skipped in the state file before invoking.
 
-```
-<persona preamble from PERSONAS.md>
+#### Invocation
 
----
+Invoke the Workflow tool with `scriptPath` set to the resolved absolute path and `args` set to:
 
-You are executing story #<number> for repo <owner/repo>.
-
-**IMPORTANT:** First read the project's CLAUDE.md file if it exists, and
-follow all instructions in it. CLAUDE.md is authoritative for stack,
-patterns, and style — it overrides any general guidance in this preamble.
-
-**IMPORTANT:** Before writing any code, if `<paths.context>/<epic-slug>/CONTEXT.md`
-exists, read it in full. Treat its Naming Conventions, File Layout, Shared
-Types & Interfaces, Patterns to Follow, and Patterns to Avoid sections as
-binding for this epic — they override generic conventions in CLAUDE.md when
-in conflict, and you should follow them even when CLAUDE.md is silent. The
-`<paths.context>` and `<epic-slug>` values are substituted from the resolved
-config and the story's epic at spawn time.
-
-**Story:** <title>
-**Acceptance criteria:** <from issue body or story file>
-**Branch strategy:** Create branch `story/<number>-<slug>` from
-`release/<epic-slug>`, implement, commit, push, and open a PR targeting
-`release/<epic-slug>`.
-
-After implementation:
-
-GitHub mode:
-1. Open a PR with a clear description of changes
-2. Ensure CI passes
-3. The PR should target the release branch, NOT development or main
-4. Do NOT merge the PR — just open it and report back.
-
-Local mode:
-1. Commit all changes to the story branch
-2. Merge the story branch into release/<epic-slug>
-3. Push the release branch
-4. Report back what was implemented.
+```yaml
+stories:            <array of StorySchema-shaped story objects from the current sprint, filtered to executor:claude + ready>
+epicSlug:           <current epic slug>
+releaseBranch:      release/<epic-slug>
+contextMdPath:      <paths.context>/<epic-slug>/CONTEXT.md (or omit if no design-spike)
+claudeMdPath:       project CLAUDE.md absolute path (or omit if absent)
+backendMode:        local | github | jira | trello
+repoIdentifier:     <owner/repo> (github mode only)
+personaPreambles:   { impl: "...", ops: "...", research: "..." }
 ```
 
-**Execution rules:**
+Wait for the workflow to return. The return is `SprintStoryReturn[]` — one entry per completed (or blocked / failed) story per `lib/workflows/schemas/SprintStoryReturnSchema.json`.
 
-1. **Independence check:** Before spawning subagents, analyze story dependencies. Only spawn stories whose blockers are all resolved.
-2. **Concurrency limit:** Run up to 3 subagents in parallel to avoid rate limiting.
-3. **Progress tracking:** As each subagent completes, update the state file and check if any blocked stories are now unblocked. Spawn newly unblocked stories immediately.
-4. **Failure handling:** If a subagent fails, retry once with additional context about the failure. If it fails again, mark the story as blocked with a note and continue with remaining stories.
-5. **Story completion:**
-   - **GitHub mode:** After a story PR is opened and CI passes, merge it to the release branch:
-     ```bash
-     gh pr merge <pr-number> --repo <owner/repo> --squash --auto
-     ```
-   - **Local mode:** The subagent merges the story branch directly into the release branch. After completion, update the story file's frontmatter to `status: done`.
-6. **Skip human/cowork stories:** Log them as skipped in the state file. They roll over naturally during sprint release.
-7. **Persona routing:** When resolving personas:
-   - **GitHub mode:**
-     ```bash
-     persona=$(gh issue view <number> --repo <owner/repo> --json labels \
-       --jq '[.labels[].name | select(startswith("persona:"))] | first // empty' \
-       | sed 's/persona://')
-     persona=${persona:-impl}
-     ```
-   - **Local mode:** Read the `persona` field from the story file's frontmatter. Default to `impl` if not set.
+#### Post-workflow persistence
 
-   Load the corresponding preamble section from `../shared/references/PERSONAS.md`
-   and prepend it to the subagent prompt. Log the persona assignment in the
-   state file.
+For each entry in the workflow's return:
 
-**Progress updates** — Print a concise progress line every 2-3 story completions:
+- `status: "done"` — Update the story file's frontmatter to `status: done`. Record `branch`, `prUrl` (github) or merge commit (local), and commit SHAs in the state file's "Current Sprint Stories" table.
+- `status: "blocked"` — Record `blockers[]` and `reason` in the state file. Add the `blocked` label to the story (or mark blocked locally). Continue.
+- `status: "failed"` — Same persistence as blocked, plus log the failure for sprint-release to roll over.
+
+#### Concurrency and barriers
+
+The workflow runs up to **16** stories concurrently with no per-stage barriers (each story's pipeline is independent; one slow review doesn't gate other stories' implementations). This replaces the v1.x cap of 3 with stage barriers.
+
+#### Progress updates
+
+The workflow surfaces structured progress via the Workflow tool's UI. Additionally, the executing agent SHOULD emit a concise summary line after the workflow returns:
 
 ```
-Sprint 2: 5/8 stories done (13/19 pts) — #21 auth middleware ✓, #22 rate limiting ✓
+Sprint 2: 5/8 stories done (13/19 pts) — 2 blocked, 1 needs review
 ```
 
 ### Step 4: Sprint Release
@@ -906,15 +868,19 @@ Applies when Mode Classification selected sequential multi-path mode (2+ tokens,
 
 ### Per-Spec Loop
 
-For each spec in the topologically-sorted execution order:
+Invoke the **multi_spec_queue.js** workflow script at `<skills-root>/_workflows/multi_spec_queue.js` (Path Resolution Algorithm same as Step 3). Args:
 
-1. Update the queue state file (see below): mark this spec's row as `in-progress`, record `Started` timestamp.
-2. Invoke the full single-spec orchestration against this spec. This is the existing v1.7.1 flow — Phase 1 (Epic Completion Loop, including scaffolding via `/project-scaffold`), Phase 2 (Emulation Hardening Loop), Phase 3 (Project Cleanup), Step 16 (ADR Update). Step 17 (state file cleanup) is **suppressed** in multi-path mode; the wrapper handles archival instead.
-3. On the spec's natural completion: archive `.claude-scrum-skill/orchestration-state.md` to `.claude-scrum-skill/orchestration-state-<spec-slug>.previous.md` BEFORE the next spec begins. Update the queue state file: mark this spec's row as `completed`, record `Completed` timestamp, update aggregate stats.
-4. On the spec's safety-gate pause:
-   - **Without `--skip-on-pause`** (default): the per-spec state file remains at `.claude-scrum-skill/orchestration-state.md` with `Status: paused`. Update the queue state file: mark this spec's row as `paused`, set queue `Status: paused`. Exit the wrapper. The remaining specs in the queue are NOT started. The user resolves the gate, re-invokes `/project-orchestrate` with the same arguments, and the queue resumes from this spec.
-   - **With `--skip-on-pause`**: archive `.claude-scrum-skill/orchestration-state.md` to `.claude-scrum-skill/orchestration-state-<spec-slug>.skipped.md`. Update the queue state file: mark this spec's row as `skipped`, record the pause reason. Continue to the next spec.
-5. Per-spec orchestration runs to completion (or pause) before the next spec begins — no interleaving of sprints, no concurrent execution.
+```yaml
+specs:               [{ path: <abs-path>, slug: <basename-no-ext> }, ...]   # topo-sorted
+flags:               { skipOnPause: true|false, merged: false }
+queueStateFilePath:  .claude-scrum-skill/orchestration-queue-state.md
+```
+
+The workflow iterates sequentially over the spec list, invoking a `per-spec-orchestration` sub-workflow per spec (one-level workflow nesting per the Workflow tool's constraint). Each sub-workflow runs the full single-spec orchestration: Phase 1 (Epic Completion) → Phase 2 (Emulation Hardening) → Phase 3 (Project Cleanup) → Step 16 (ADR Update). Step 17 (state file cleanup) is **suppressed** in multi-path mode; the queue workflow handles archival with the slug-suffixed naming below.
+
+The workflow handles `--skip-on-pause` internally: on a safety-gate pause, with the flag the queue advances and the affected spec's state file is archived with `.skipped.md` suffix; without the flag the queue exits with the paused spec identified.
+
+The workflow returns `{ summaries, aggregate, paused?, pausedSpec? }`. The executing agent persists the queue state file from this return after the workflow completes, and emits the cumulative summary per the Cumulative Summary subsection below.
 
 ### Spec Slug Derivation
 

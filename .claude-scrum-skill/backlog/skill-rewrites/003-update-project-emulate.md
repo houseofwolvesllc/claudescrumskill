@@ -1,7 +1,7 @@
 ---
 title: Update project-emulate with verification step
 epic: skill-rewrites
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 2
@@ -9,7 +9,7 @@ labels: [type:story, executor:claude, P1-high, epic:skill-rewrites, ready-for-wo
 persona: impl
 blocked_by: [workflow-scripts/004]
 blocks: [release/001]
-sprint: null
+sprint: 3
 ---
 
 ## Objective
