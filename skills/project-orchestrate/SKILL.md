@@ -423,7 +423,7 @@ For each entry in the workflow's return:
 
 #### Concurrency and barriers
 
-The workflow runs up to **16** stories concurrently with no per-stage barriers (each story's pipeline is independent; one slow review doesn't gate other stories' implementations). This replaces the v1.x cap of 3 with stage barriers.
+The workflow runs up to `min(16, cpu_cores - 2)` stories concurrently with no per-stage barriers — each story's pipeline is independent, so one slow review doesn't gate other stories' implementations. The barrier-removal benefit is unconditional; the concurrency lift is conditional on host cores (a 4-core host gets concurrency 2, an 8-core host gets 6, a 18+-core host gets the full 16). On all hosts this still beats v1.x's hardcoded 3 + barriers model on most sprint sizes.
 
 #### Progress updates
 
@@ -868,19 +868,19 @@ Applies when Mode Classification selected sequential multi-path mode (2+ tokens,
 
 ### Per-Spec Loop
 
-Invoke the **multi_spec_queue.js** workflow script at `<skills-root>/_workflows/multi_spec_queue.js` (Path Resolution Algorithm same as Step 3). Args:
+The per-spec loop is **executed by the skill markdown** (not a wrapping workflow), because the inner per-spec orchestration invokes individual workflows (`sprint_pipeline.js`, `elaborate_epics.js`, etc.) via the Workflow tool. The Workflow tool's nesting constraint ("one level of nesting only") prevents a multi-spec-queue workflow from invoking sub-workflows that themselves invoke workflows; the skill markdown is the right layer to orchestrate per-spec iteration.
 
-```yaml
-specs:               [{ path: <abs-path>, slug: <basename-no-ext> }, ...]   # topo-sorted
-flags:               { skipOnPause: true|false, merged: false }
-queueStateFilePath:  .claude-scrum-skill/orchestration-queue-state.md
-```
+For each spec in the topologically-sorted execution order:
 
-The workflow iterates sequentially over the spec list, invoking a `per-spec-orchestration` sub-workflow per spec (one-level workflow nesting per the Workflow tool's constraint). Each sub-workflow runs the full single-spec orchestration: Phase 1 (Epic Completion) → Phase 2 (Emulation Hardening) → Phase 3 (Project Cleanup) → Step 16 (ADR Update). Step 17 (state file cleanup) is **suppressed** in multi-path mode; the queue workflow handles archival with the slug-suffixed naming below.
+1. Update the queue state file: mark this spec's row as `in-progress`, record `Started` timestamp.
+2. Invoke the full single-spec orchestration against this spec — re-enter Phase 1 (Epic Completion Loop, including scaffolding via `/project-scaffold`), Phase 2 (Emulation Hardening Loop), Phase 3 (Project Cleanup), Step 16 (ADR Update). Each of these phases internally invokes workflows (`sprint_pipeline.js`, `elaborate_epics.js`, `adversarial_verify.js`, `review_panel.js`) as documented in their respective sections. Step 17 (state file cleanup) is **suppressed** in multi-path mode; archive instead with the slug-suffixed naming below.
+3. On the spec's natural completion: archive `.claude-scrum-skill/orchestration-state.md` to `.claude-scrum-skill/orchestration-state-<spec-slug>.previous.md` BEFORE the next spec begins. Update the queue state file: mark this spec's row as `completed`, record `Completed` timestamp, update aggregate stats.
+4. On the spec's safety-gate pause:
+   - **Without `--skip-on-pause`** (default): per-spec state file remains at `.claude-scrum-skill/orchestration-state.md` with `Status: paused`. Update the queue state file: mark this spec's row as `paused`, set queue `Status: paused`. Exit. Remaining specs are NOT started. User resolves the gate and re-invokes; queue resumes from the paused spec.
+   - **With `--skip-on-pause`**: archive `.claude-scrum-skill/orchestration-state.md` to `.claude-scrum-skill/orchestration-state-<spec-slug>.skipped.md`. Update the queue state file: mark this spec's row as `skipped`, record the pause reason. Continue to the next spec.
+5. Per-spec orchestration runs to completion (or pause) before the next spec begins — no interleaving of sprints, no concurrent execution.
 
-The workflow handles `--skip-on-pause` internally: on a safety-gate pause, with the flag the queue advances and the affected spec's state file is archived with `.skipped.md` suffix; without the flag the queue exits with the paused spec identified.
-
-The workflow returns `{ summaries, aggregate, paused?, pausedSpec? }`. The executing agent persists the queue state file from this return after the workflow completes, and emits the cumulative summary per the Cumulative Summary subsection below.
+After all specs are processed, emit the Cumulative Summary per the subsection below.
 
 ### Spec Slug Derivation
 

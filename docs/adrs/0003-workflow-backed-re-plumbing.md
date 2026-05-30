@@ -23,15 +23,18 @@ Adopt **a two-layer architecture for v2.0.0+**:
 - **Skills (markdown SKILL.md)** own the *opinion* (which phases run, when, in what order, with what artifacts) and the *user surface* (slash commands users type). Skills install to `~/.claude/skills/<skill>/SKILL.md` via `bin/install.js`. They remain the entry point and the source of project conventions.
 - **Workflow scripts (JavaScript at `lib/workflows/`)** own the *substrate* — the actual fan-out, schema-validated returns, and journal-based resume. They install alongside skills at `~/.claude/skills/_workflows/`. Skills invoke them via the Claude Code Workflow tool using a Path Resolution Algorithm (walk up from SKILL.md to the skills root, then descend into `_workflows/`).
 
-### Five workflow scripts shipped in v2.0.0
+### Four workflow scripts shipped in v2.0.0
 
 | Script | Replaces | Concurrency change |
 |--------|----------|--------------------|
-| `sprint_pipeline.js` | `/project-orchestrate` Phase 1 Step 3 Task-spawning prose | 3 → 16, barriers removed |
-| `elaborate_epics.js` | `/project-scaffold` Pass 2 Task-spawning prose | 3 → 16, one wave instead of N rounds |
-| `multi_spec_queue.js` | `/project-orchestrate` Sequential Multi-Path Mode hand-coded loop | sequential (intentional) |
+| `sprint_pipeline.js` | `/project-orchestrate` Phase 1 Step 3 Task-spawning prose | hardcoded 3 → up-to-`min(16, cpu_cores - 2)`, barriers removed (barrier removal is the unconditional gain; concurrency lift depends on host) |
+| `elaborate_epics.js` | `/project-scaffold` Pass 2 Task-spawning prose | hardcoded 3 → up-to-`min(16, cpu_cores - 2)`, one wave instead of N rounds |
 | `adversarial_verify.js` | New (lifts emulation findings from "trust the emulator" to claimant/skeptic/judge verdicts) | up to N findings × 3 agents each |
 | `review_panel.js` | `/project-cleanup` single-pass review | 4 lenses in parallel |
+
+The multi-spec sequential queue is implemented in the skill markdown (not as a workflow) because the per-spec body invokes the per-skill workflows above, and the Workflow tool's "one level of nesting only" constraint precludes a queue-workflow → per-spec-workflow → leaf-workflow chain. This is documented as a deliberate choice; future tool-level relaxation of the nesting constraint could collapse the queue back into a workflow.
+
+`/code-review` was originally listed as a rewrite target in the source spec. It is a Claude Code first-party skill not in this package; the v2.0.0 review-panel work is scoped to `/project-cleanup` only.
 
 ### Eight JSON Schemas as the cross-skill type system
 
