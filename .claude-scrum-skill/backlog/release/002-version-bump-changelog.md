@@ -1,7 +1,7 @@
 ---
 title: Bump package.json to 2.0.0 and add [2.0.0] CHANGELOG entry
 epic: release
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 2
@@ -9,7 +9,7 @@ labels: [type:story, executor:claude, P1-high, epic:release, ready-for-work]
 persona: impl
 blocked_by: [skill-rewrites/001, skill-rewrites/002]
 blocks: []
-sprint: null
+sprint: 4
 ---
 
 ## Objective
