@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **Two-layer architecture** (see [ADR-0003](docs/adrs/0003-workflow-backed-re-plumbing.md)): skills (markdown SKILL.md) own the opinion + user surface; workflow scripts (JavaScript at `lib/workflows/`) own the fan-out substrate. Skills invoke workflows via the Claude Code Workflow tool using a Path Resolution Algorithm (walk up from SKILL.md to the skills root, then descend into `_workflows/`).
-- **5 workflow scripts** at `lib/workflows/`: `sprint_pipeline.js` (per-story sprint execution as a pipeline), `elaborate_epics.js` (Pass 2 of two-pass scaffolding as one parallel wave), `multi_spec_queue.js` (sequential per-spec queue with one-level sub-workflow nesting), `adversarial_verify.js` (claimant/skeptic/judge verification of emulation findings), `review_panel.js` (multi-lens parallel review with aggregated verdict).
+- **4 workflow scripts** at `lib/workflows/`: `sprint_pipeline.js` (per-story sprint execution as a pipeline), `elaborate_epics.js` (Pass 2 of two-pass scaffolding as one parallel wave), `adversarial_verify.js` (claimant/skeptic/judge verification of emulation findings), `review_panel.js` (multi-lens parallel review with aggregated verdict). The multi-spec sequential queue is implemented in the skill markdown rather than as a workflow because per-spec orchestration internally invokes other workflows, and the Workflow tool's nesting constraint (one level only) precludes a queue-workflow → per-spec-workflow → leaf-workflow chain.
 - **8 JSON Schemas** at `lib/workflows/schemas/`: `SpecSchema`, `EpicSchema`, `StorySchema`, `EmulationFindingSchema`, `ReviewVerdictSchema`, `SprintStoryReturnSchema`, `ScaffoldOutputSchema`, `PRDFrontmatterSchema` (all JSON Schema Draft 2020-12). Cross-skill type system for schema-validated workflow returns.
 - **`bin/install.js`** copies `lib/workflows/` to `<install-dir>/_workflows/` during postinstall (underscore prefix prevents Claude Code from registering it as a skill).
 - **README "Architecture" section** for contributors documenting the layered model, the shipped workflows and schemas, and the convention for adding new workflows.
@@ -22,13 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`package.json` `files` field** includes `lib/` so workflows ship in the published tarball.
 
 ### Changed
-- **`/project-orchestrate` Phase 1 Step 3 (Story Execution)** rewritten to invoke `sprint_pipeline.js`. Concurrency lifts from 3 to 16; per-stage barriers removed. Pre-spawn checks (independence, persona resolution, human/cowork skip) and post-workflow persistence are documented inline. Replaces ~80 lines of Task-spawning subagent-prompt prose.
-- **`/project-orchestrate` Sequential Multi-Path Mode Per-Spec Loop** rewritten to invoke `multi_spec_queue.js`. The queue's `--skip-on-pause` handling lives in the workflow.
+- **`/project-orchestrate` Phase 1 Step 3 (Story Execution)** rewritten to invoke `sprint_pipeline.js`. Concurrency lifts from a hardcoded 3 to up-to-`min(16, cpu_cores - 2)` per the Workflow tool's cap; per-stage barriers are removed (the barrier-removal benefit is unconditional). Pre-spawn checks (independence, persona resolution, human/cowork skip) and post-workflow persistence are documented inline. Replaces ~80 lines of Task-spawning subagent-prompt prose.
+- **`/project-orchestrate` Sequential Multi-Path Mode Per-Spec Loop** rewritten to be executed by the skill markdown directly (no wrapping workflow). The per-spec body still invokes the per-skill workflows (`sprint_pipeline.js`, `elaborate_epics.js`, `adversarial_verify.js`, `review_panel.js`) for each spec; the queue lifecycle (iteration order, `--skip-on-pause`, queue state file updates) is markdown-driven. This respects the Workflow tool's "one level of nesting only" constraint.
 - **`/project-scaffold` Two-Pass Procedure Pass 2** rewritten to invoke `elaborate_epics.js`. Pass 1 narration (single-agent skeleton extraction) unchanged.
 
 ### Removed
 - **Task-spawning narrative prose** in `/project-orchestrate` Phase 1 Step 3 (the verbose subagent-prompt-structure block, the persona-routing bash snippets, the concurrency-3 cap text). Replaced by a thin Workflow-invocation directive.
-- **Multi-spec queue hand-coded loop prose** in `/project-orchestrate` Sequential Multi-Path Mode Per-Spec Loop. Replaced by a workflow invocation.
+- (Scope note: `/code-review` was originally listed as a rewrite target in the source spec. It is a Claude Code first-party skill not shipped in this package; the v2.0.0 review-panel work is scoped to `/project-cleanup` only.)
 - **Pass 2 fan-out narrative prose** in `/project-scaffold` Two-Pass Procedure. Replaced by a workflow invocation.
 
 ### Migration

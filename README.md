@@ -519,7 +519,6 @@ claudescrumskill ships in two cooperating layers. The split is documented in det
 |--------|---------|---------|
 | `sprint_pipeline.js` | per-story pipeline: implement → review → verify → openPR | `/project-orchestrate` Phase 1 Step 3 |
 | `elaborate_epics.js` | Pass 2 of two-pass scaffolding, in parallel | `/project-scaffold` |
-| `multi_spec_queue.js` | sequential per-spec orchestration over a queue | `/project-orchestrate` Sequential Multi-Path Mode |
 | `adversarial_verify.js` | claimant/skeptic/judge per emulation finding | `/project-emulate` |
 | `review_panel.js` | multi-lens (correctness/security/style/tests) review | `/project-cleanup`, `/code-review` |
 
