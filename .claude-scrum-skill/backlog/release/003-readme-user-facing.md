@@ -1,7 +1,7 @@
 ---
 title: Update README user-facing sections for v2.0.0
 epic: release
-status: backlog
+status: done
 executor: claude
 priority: P2-medium
 points: 2
@@ -9,7 +9,7 @@ labels: [type:story, executor:claude, P2-medium, epic:release, ready-for-work]
 persona: impl
 blocked_by: [release/002]
 blocks: []
-sprint: null
+sprint: 4
 ---
 
 ## Objective
