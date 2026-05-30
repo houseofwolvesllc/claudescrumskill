@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/houseofwolvesllc/claudescrumskill/schemas/EpicSchema.json",
+  "title": "EpicSchema",
+  "description": "Single epic shape. Stories array is optional until Pass 2 elaboration populates it.",
+  "type": "object",
+  "required": ["name", "slug", "description"],
+  "properties": {
+    "name": { "type": "string" },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Kebab-case identifier; matches directory name in local backlog."
+    },
+    "description": { "type": "string" },
+    "depends_on": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Slugs of other epics that must complete first."
+    },
+    "shared_design_concerns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Cross-cutting concerns introduced by this epic that other epics may consume; feeds the design-spike epic procedure."
+    },
+    "slice": {
+      "type": "object",
+      "description": "PRD line range covering this epic (used by two-pass scaffolding for Pass 2 slicing).",
+      "properties": {
+        "start_line": { "type": "integer", "minimum": 1 },
+        "end_line": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "epic_type": {
+      "type": "string",
+      "enum": ["design-spike"],
+      "description": "Marks the epic as the design-spike pre-epic; absence indicates a standard implementation epic."
+    },
+    "stories": {
+      "type": "array",
+      "items": { "$ref": "StorySchema.json" },
+      "description": "Populated by Pass 2 elaboration; empty/missing for skeleton epics."
+    }
+  },
+  "additionalProperties": false
+}

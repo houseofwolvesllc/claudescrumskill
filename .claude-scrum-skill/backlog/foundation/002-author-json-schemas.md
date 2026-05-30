@@ -1,7 +1,7 @@
 ---
 title: Author all 8 JSON Schema files
 epic: foundation
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 3
@@ -9,7 +9,7 @@ labels: [type:story, executor:claude, P1-high, epic:foundation, ready-for-work]
 persona: impl
 blocked_by: [foundation/001]
 blocks: [workflow-scripts/001, workflow-scripts/002, workflow-scripts/003, workflow-scripts/004, workflow-scripts/005]
-sprint: null
+sprint: 1
 ---
 
 ## Objective

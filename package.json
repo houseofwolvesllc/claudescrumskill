@@ -32,6 +32,7 @@
   "files": [
     ".claude-plugin/",
     "skills/",
-    "bin/"
+    "bin/",
+    "lib/"
   ]
 }

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/houseofwolvesllc/claudescrumskill/schemas/SpecSchema.json",
+  "title": "SpecSchema",
+  "description": "Output shape of /project-spec, consumed by /project-scaffold.",
+  "type": "object",
+  "required": ["title", "overview", "objectives", "epics"],
+  "properties": {
+    "title": { "type": "string" },
+    "overview": { "type": "string" },
+    "objectives": {
+      "type": "object",
+      "required": ["primary"],
+      "properties": {
+        "primary": { "type": "array", "items": { "type": "string" } },
+        "secondary": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "epics": {
+      "type": "array",
+      "items": { "$ref": "EpicSchema.json" }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Inter-epic or cross-spec dependencies expressed as free-text references."
+    },
+    "design_concerns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Cross-cutting concerns the design-spike epic should lift into ADR / CONTEXT.md."
+    },
+    "scaffold_mode": {
+      "type": "string",
+      "enum": ["single-pass", "two-pass"],
+      "description": "Optional PRD frontmatter override for /project-scaffold Mode Detection."
+    },
+    "design_spike": {
+      "type": "boolean",
+      "description": "Optional PRD frontmatter override for design-spike epic injection."
+    }
+  },
+  "additionalProperties": false
+}
