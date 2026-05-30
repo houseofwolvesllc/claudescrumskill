@@ -1,7 +1,7 @@
 ---
 title: Verify existing fixtures still apply to v2.0.0
 epic: verification
-status: backlog
+status: done
 executor: claude
 priority: P2-medium
 points: 1
@@ -9,7 +9,7 @@ labels: [type:story, executor:claude, P2-medium, epic:verification, ready-for-wo
 persona: impl
 blocked_by: [skill-rewrites/001, skill-rewrites/002]
 blocks: []
-sprint: null
+sprint: 5
 ---
 
 ## Objective
