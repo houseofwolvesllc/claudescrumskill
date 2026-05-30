@@ -1,7 +1,7 @@
 ---
 title: Author elaborate_epics.js
 epic: workflow-scripts
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 3
@@ -9,7 +9,7 @@ labels: [type:story, executor:claude, P1-high, epic:workflow-scripts, ready-for-
 persona: impl
 blocked_by: [foundation/001, foundation/002]
 blocks: [skill-rewrites/002]
-sprint: null
+sprint: 2
 ---
 
 ## Objective
