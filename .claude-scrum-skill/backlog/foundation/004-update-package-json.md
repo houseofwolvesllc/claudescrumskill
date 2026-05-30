@@ -1,7 +1,7 @@
 ---
 title: Update package.json files field to include lib/
 epic: foundation
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 1
@@ -9,7 +9,7 @@ labels: [type:story, executor:claude, P1-high, epic:foundation, ready-for-work]
 persona: impl
 blocked_by: []
 blocks: []
-sprint: null
+sprint: 1
 ---
 
 ## Objective

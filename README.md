@@ -60,6 +60,8 @@ PRD (optional)  -->  /project-orchestrate
 
 ## Installation
 
+> **v2.0.0 runtime requirement:** v2.0.0 invokes Claude Code's [Workflow tool](https://docs.claude.com/claude-code) for internal fan-out. Your Claude Code must include the Workflow tool (latest CLI, desktop app, web app, and IDE extensions all do). If you're on a stale CLI install without auto-update, run `npm update -g @anthropic-ai/claude-code` first — or install the v1.8.x fallback: `npm install --save-dev @houseofwolvesllc/claude-scrum-skill@1.8.1`.
+
 ### npm (recommended)
 
 ```bash
@@ -479,6 +481,60 @@ Edit `shared/config.json` to change where specs, ADRs, and backlog files are wri
 
 ### Adding Epics
 Run `/project-scaffold` with a new PRD — it detects the existing project and offers to add stories to existing epics or create new ones.
+
+---
+
+## Architecture (v2.0.0+)
+
+claudescrumskill ships in two cooperating layers. The split is documented in detail in [ADR-0003](docs/adrs/0003-workflow-backed-re-plumbing.md).
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  Skills — markdown SKILL.md (the opinion + the surface)    │
+│  - Slash commands users type                                │
+│  - Phase / step structure                                   │
+│  - Durable repo artifacts (state files, ADRs, CONTEXT.md)   │
+│  - Installed at ~/.claude/skills/<skill>/SKILL.md           │
+└──────────────────────┬─────────────────────────────────────┘
+                       │  invokes via Workflow tool
+                       ▼
+┌────────────────────────────────────────────────────────────┐
+│  Workflows — JavaScript at lib/workflows/ (the substrate)  │
+│  - Fan-out (parallel, pipeline) up to 16 concurrent agents  │
+│  - Schema-validated structured returns                      │
+│  - Journal-based in-session resume                          │
+│  - Installed at ~/.claude/skills/_workflows/                │
+└──────────────────────┬─────────────────────────────────────┘
+                       │  spawns
+                       ▼
+┌────────────────────────────────────────────────────────────┐
+│  Agents — the workers that implement stories, review        │
+│  diffs, verify findings, etc.                               │
+└────────────────────────────────────────────────────────────┘
+```
+
+### Workflow scripts shipped in v2.0.0
+
+| Script | Purpose | Used by |
+|--------|---------|---------|
+| `sprint_pipeline.js` | per-story pipeline: implement → review → verify → openPR | `/project-orchestrate` Phase 1 Step 3 |
+| `elaborate_epics.js` | Pass 2 of two-pass scaffolding, in parallel | `/project-scaffold` |
+| `multi_spec_queue.js` | sequential per-spec orchestration over a queue | `/project-orchestrate` Sequential Multi-Path Mode |
+| `adversarial_verify.js` | claimant/skeptic/judge per emulation finding | `/project-emulate` |
+| `review_panel.js` | multi-lens (correctness/security/style/tests) review | `/project-cleanup`, `/code-review` |
+
+### Schemas at `lib/workflows/schemas/`
+
+JSON Schema Draft 2020-12. The cross-skill type system: `SpecSchema`, `EpicSchema`, `StorySchema`, `EmulationFindingSchema`, `ReviewVerdictSchema`, `SprintStoryReturnSchema`, `ScaffoldOutputSchema`, `PRDFrontmatterSchema`. Schemas live alongside workflows and are referenced from `agent({ schema: ... })` calls.
+
+### Adding a workflow
+
+Contributors adding fan-out heavy skills (large parallel work, multi-stage pipelines, judge panels) should:
+
+1. Author the workflow at `lib/workflows/<name>.js` per the patterns in existing scripts.
+2. Add any new schemas to `lib/workflows/schemas/`.
+3. Reference the workflow from the skill markdown via the Path Resolution Algorithm documented in each affected SKILL.md (`<skills-root>/_workflows/<name>.js`).
+4. Bump the package version per SemVer (new workflow + new schema → minor; breaking schema change → major).
 
 ---
 

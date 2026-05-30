@@ -1,7 +1,7 @@
 ---
 title: Add Architecture section to README for contributors
 epic: foundation
-status: backlog
+status: done
 executor: claude
 priority: P2-medium
 points: 2
@@ -9,7 +9,7 @@ labels: [type:story, executor:claude, P2-medium, epic:foundation, ready-for-work
 persona: impl
 blocked_by: []
 blocks: []
-sprint: null
+sprint: 1
 ---
 
 ## Objective
