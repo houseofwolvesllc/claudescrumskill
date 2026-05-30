@@ -303,6 +303,33 @@ After writing new tests, re-run the full suite to confirm all tests pass and cov
 
 ---
 
+## Phase 5.5: Multi-Lens Review Panel (v2.0.0+)
+
+After fixes are applied (or in `--report-only` mode after the catalog is built) and BEFORE Final Validation, invoke the **review_panel.js** workflow script to run a multi-lens review across the final diff or scoped change set.
+
+#### Path Resolution
+
+Workflow ships at `<skills-root>/_workflows/review_panel.js`.
+
+#### Invocation
+
+```yaml
+diff:                     <git diff against the pre-cleanup baseline>
+files:                    [{ path, contents }, ...]   # for files that lack a pre-baseline (new files)
+lenses:                   ["correctness", "security", "style", "tests"]   # default; override per project
+projectConventionsPath:   <project>/CLAUDE.md         # optional
+```
+
+The workflow returns `{ panelVerdict, perLensVerdicts }`. The panel verdict is aggregated per the workflow's rule (any lens blocks → panel blocks; any accept-with-followups → panel accept-with-followups; else accept).
+
+#### Apply the panel verdict
+
+- `panelVerdict.recommendation === "block"` → record the blocking findings in the cleanup report's Critical section; do NOT proceed to Final Validation; surface the per-lens verdicts to the user.
+- `panelVerdict.recommendation === "accept-with-followups"` → record follow-up findings in the cleanup report; proceed to Final Validation.
+- `panelVerdict.recommendation === "accept"` → proceed to Final Validation.
+
+Per-lens verdicts (with `lens` attribution preserved on each finding) are written verbatim to the cleanup report so users can see which lens raised each concern.
+
 ## Phase 6: Final Validation
 
 After all fixes (or after cataloging all issues in report-only mode), run a final validation pass.
