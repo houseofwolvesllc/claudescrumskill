@@ -47,6 +47,35 @@ default: `.claude-scrum-skill/specs`).
 
 Save the output spec to `<specs-path>/YYYYMMDD_hhmmss_{name}.md` where the timestamp is in YYYYMMDD*hhmmss format in **US Pacific Time (PST/PDT)** and `{name}` is a snake_case name that succinctly describes the feature or project. To get the current Pacific time, run `TZ='America/Los_Angeles' date '+%Y%m%d*%H%M%S'` via the Bash tool.
 
+### Schema-Validated Sibling Output (v2.0.0+)
+
+In addition to the markdown spec document, write a sibling JSON file at `<specs-path>/YYYYMMDD_hhmmss_{name}.spec.json` conforming to `SpecSchema` (`<skills-root>/_workflows/schemas/SpecSchema.json`). Required fields:
+
+```json
+{
+  "title": "<spec title>",
+  "overview": "<one-paragraph overview>",
+  "objectives": {
+    "primary": ["..."],
+    "secondary": ["..."]
+  },
+  "epics": [
+    {
+      "name": "<epic name>",
+      "slug": "<kebab-case>",
+      "description": "<one-paragraph>",
+      "depends_on": [],
+      "shared_design_concerns": [],
+      "slice": { "start_line": 0, "end_line": 0 }
+    }
+  ],
+  "dependencies": ["..."],
+  "design_concerns": ["..."]
+}
+```
+
+The JSON sibling lets downstream skills (`/project-scaffold` especially) consume the spec via schema-validated direct access rather than re-parsing the markdown. Both files MUST be produced; the markdown remains the human-readable canonical document.
+
 ## Guidelines for Success
 
 1. **Be Specific**: Avoid vague requirements; provide concrete details.

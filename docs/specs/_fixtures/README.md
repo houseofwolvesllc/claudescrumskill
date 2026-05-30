@@ -1,6 +1,8 @@
 # Scaffolding Verification Fixtures
 
-These fixtures exist to verify the two-pass scaffolding and design-spike epic features added by the [Orchestrate Large-PRD Hardening](../20260527_000454_orchestrate_large_prd_hardening.md) spec. They are not production specs — do not scaffold them into the project's real backlog. Use a throwaway directory (`config.json` → `paths.backlog: ./tmp/verification/backlog`) when exercising these.
+These fixtures exist to verify the two-pass scaffolding, design-spike epic, multi-spec sequential orchestration, and v2.0.0 workflow-backed execution features. They are not production specs — do not scaffold them into the project's real backlog. Use a throwaway directory (`config.json` → `paths.backlog: ./tmp/verification/backlog`) when exercising these.
+
+> **v2.0.0 note:** Verification cases 1-3 (small_prd, large_prd) now exercise workflow-backed internal execution. Sprint execution goes through `sprint_pipeline.js`, Pass 2 elaboration through `elaborate_epics.js`, emulation verification through `adversarial_verify.js`, and the cleanup review through `review_panel.js`. The expected user-visible artifacts are unchanged from v1.8.x; observe the workflow run progress in the Workflow tool UI to confirm the new substrate is in use.
 
 ## Fixtures
 

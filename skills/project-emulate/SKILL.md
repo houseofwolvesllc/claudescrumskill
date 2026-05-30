@@ -505,6 +505,35 @@ Not every project will have all stages. Skip what doesn't apply. Add stages that
 
 ---
 
+## Phase 5.5: Adversarial Verification of Findings (v2.0.0+)
+
+After Phase 5 produces raw findings and BEFORE the Coverage Report is finalized, invoke the **adversarial_verify.js** workflow script to verify each finding via the claimant / skeptic / judge pattern. This lifts emulation from "trust the emulator" to structured verdicts.
+
+#### Path Resolution
+
+Workflow ships at `<skills-root>/_workflows/adversarial_verify.js` (parent of this SKILL.md's parent → `_workflows/`).
+
+#### Invocation
+
+Pass the finding list (per `EmulationFindingSchema`) and optional `codebaseContext`:
+
+```yaml
+findings:         [<EmulationFinding>, ...]   # collected during Phases 1-5
+codebaseContext:  { projectRoot: <path>, languages: ["typescript", ...] }
+```
+
+The workflow returns `[{ finding, claim, skeptic, verdict }, ...]` where `verdict.isReal` is a boolean and `verdict.severity_adjustment` may suggest raising/lowering severity.
+
+#### Apply the verdicts
+
+For each verified finding:
+- `verdict.isReal === false` → demote to Info OR drop entirely (your choice; if dropping, log the false-positive in a separate "Dismissed" section of ISSUES.md).
+- `verdict.isReal === true` AND `verdict.severity_adjustment === "raise"` → bump severity one level.
+- `verdict.isReal === true` AND `verdict.severity_adjustment === "lower"` → drop severity one level (Critical → Warning, Warning → Info).
+- Otherwise keep as-is.
+
+Findings that survive verification (and the survivors only) drive the Coverage Report and any hardening PRD downstream skills generate.
+
 ## Phase 6: Coverage Report
 
 After the walkthrough, produce a structured report:

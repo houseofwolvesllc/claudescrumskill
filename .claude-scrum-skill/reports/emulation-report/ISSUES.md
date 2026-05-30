@@ -1,99 +1,147 @@
-# Emulation Findings — Run 1 (Multi-Spec Sequential Orchestration)
+# Emulation Findings — Run 1 (v2.0.0 Workflow-Backed Re-Plumbing)
 
-Scope: validate the Phase 1 work (sequential multi-path mode + `depends_on` resolution + `--skip-on-pause` / `--merged` flags + queue state file) against the consumer workflows: invoking `/project-orchestrate` with multiple PRD paths, reading the new SKILL.md sections as a new user, reading the README invocation patterns table, executing per-spec orchestration through the new wrapper.
+Scope: validate the Phase 1 work against the consumer workflows: invoking `/project-orchestrate spec.md` on v2.0.0, the workflow scripts' contracts vs skill markdown invocations, schema cross-references, install.js correctness, plugin install path, README accuracy.
 
-Project is a markdown skill suite — Phase 2 categories 1, 2, 4, 5, 6 from the emulation framework are N/A. Phase 3 categories all N/A. Phase 2 category 3 (Config Coverage) applies in a narrow sense (new flags vs documentation). Findings below come from cross-document consistency emulation: read each new section as a different consumer role and flag every place where two documents disagree, a reference dangles, or a control surface is ambiguous.
+Project is a markdown skill suite + new JavaScript layer. Phase 2 categories partially apply now that JS is in scope.
 
 ---
 
 ## 🔴 Critical
 
-None.
+### C1. multi_spec_queue.js references a non-existent `per-spec-orchestration` sub-workflow
 
-The new functionality wires cleanly into the existing v1.7.1 single-spec orchestration. Multi-path mode is a wrapper that invokes the existing flow once per spec; all the integration seams (Mode Classification → Dependency Resolution → per-spec wrapper → state file archival → cumulative summary) have explicit handoffs.
+**Category:** Workflow Tool Contract / Missing Artifact
+**Files:** `lib/workflows/multi_spec_queue.js`, `skills/project-orchestrate/SKILL.md`
+
+`multi_spec_queue.js` calls `await workflow('per-spec-orchestration', {...})` per spec. No `per-spec-orchestration` workflow was authored in this release; calling it would throw "unknown name" at runtime. Sequential Multi-Path Mode is non-functional as shipped.
+
+**Deeper structural issue:** even if `per-spec-orchestration` existed, the Workflow tool's "one level of nesting" constraint would prevent that sub-workflow from invoking `sprint_pipeline.js` as a further nested workflow. The whole per-spec flow would have to be inlined as `agent()` calls inside one workflow.
+
+**Recommendations (pick one):**
+
+- **(a)** Implement `per_spec_orchestration.js` that handles the full single-spec orchestration as inline `agent()` calls (no further nested workflows). Big script — duplicates a lot of skill logic.
+- **(b)** Re-architect: multi-spec mode handled in skill markdown (not in a workflow). The skill loops over specs and invokes the per-skill workflows (sprint_pipeline, etc.) for each one. multi_spec_queue.js is deleted; the queue state file management lives in the skill markdown.
+- **(c)** Ship multi-spec mode as a known-broken feature in v2.0.0 with a CHANGELOG note, fix in a follow-up v2.1.
+
+Recommend **(b)** — cleanest and respects the Workflow tool's nesting constraint.
+
+---
+
+### C2. Schema `$ref` resolution unspecified
+
+**Category:** Schema Distribution / Runtime Behavior
+**Files:** `lib/workflows/schemas/SpecSchema.json` and others using `"$ref": "EpicSchema.json"`
+
+JSON Schema `$ref` resolution against relative file paths depends on the validator implementation. The Workflow tool's `schema` option accepts a JSON Schema object — but resolving sibling-file `$ref`s is undefined behavior in the tool description. If the validator doesn't fetch them, schema validation degrades silently or fails.
+
+**Recommendation:** Either (a) inline the referenced schemas into each consuming schema (duplicates definitions but makes them self-contained), (b) use `$defs` within a single composite schema file (preserves DRY), or (c) document the expected $ref resolution behavior and verify it works in practice. Option (a) is safest.
 
 ---
 
 ## 🟡 Warning
 
-### W1. Mode Classification table missing the "2+ tokens, all non-files" case
+### W1. Concurrency claim ("16") is misleading — actual cap is `min(16, cpu_cores - 2)`
 
-**Category:** Specification/Completeness
-**Files:** `skills/project-orchestrate/SKILL.md` (Input Parsing and Mode Detection → Mode Classification)
+**Category:** Documentation/Performance-Claim
+**Files:** `README.md`, `CHANGELOG.md`, `skills/project-orchestrate/SKILL.md`, `skills/project-scaffold/SKILL.md`, `docs/adrs/0003-workflow-backed-re-plumbing.md`
 
-The classification table covers 0 tokens, 1 token (file), 1 token (non-file), 2 tokens (one file one non-file), 2+ tokens (all files), and 2+ tokens (mixed). It does NOT address the case of **2+ tokens, all non-files** — e.g., `/project-orchestrate owner/repo-a owner/repo-b`. An executing agent would have no documented rule for this case.
+Multiple documents claim "concurrency 16" or "concurrency lifts from 3 to 16". The Workflow tool's effective cap per its description is `min(16, cpu cores - 2)`. On a typical 4-core CI runner the effective cap is 2 — LOWER than v1.8.x's hardcoded 3. On 8-core machines it's 6; only on 18+ core machines does it actually reach 16.
 
-**Likely interpretation under ambiguity:** agent picks the first arg and treats it as repo-identifier mode, ignoring the rest — or worse, attempts to handle both and fails partway.
+**Impact:** Real performance improvement is smaller than claimed and may be negative on small machines.
 
-**Recommendation:** Add a table row: "2+ tokens, all non-files → **ERROR.** Multi-repo invocation is unsupported. Abort with a message listing the repo identifiers and noting that exactly one repo identifier is permitted."
+**Recommendation:** Update claims to "concurrency up to 16" or "concurrency lifts from 3 to up-to-16 depending on host CPU cores; per-stage barriers also removed (separate gain independent of cores)". The barrier-removal benefit is unconditional and is the real win for small-core hosts.
 
 ---
 
-### W2. Flag/arg disambiguation not explicit before mode classification
+### W2. NFR-6 line-reduction target unmet
 
-**Category:** Specification/Order-Of-Operations
-**Files:** `skills/project-orchestrate/SKILL.md` (Input Parsing and Mode Detection → Flag Parsing + Mode Classification)
+**Category:** Spec Compliance
+**Files:** `skills/project-orchestrate/SKILL.md`
 
-The Flag Parsing subsection says "flags may appear in any position within `$ARGUMENTS`". The Mode Classification table counts "tokens" without explicitly stating that flags are stripped from the token count before classification. An executing agent could plausibly count `--skip-on-pause` as one of the "2+ tokens" and miscalibrate the classification — e.g., `/project-orchestrate --skip-on-pause spec.md` (single spec + one flag) could be misread as a 2-token invocation triggering some mode.
+Source spec NFR-6 required ≥ 30% reduction in `project-orchestrate/SKILL.md` line count (target < 770 lines from ~1100). Current size is 1140 lines — slightly larger than the v1.8.x baseline. The Task-spawning prose IS gone (~50 lines deleted) but other content (Path Resolution Algorithm, pre-spawn checks, post-workflow persistence guidance) was added net-positive.
 
-**Recommendation:** Add a "Pre-Classification Step" sentence at the top of Mode Classification: "Before applying the table below, separate flag tokens (those starting with `--`) from argument tokens. Count and classify only the argument tokens. Flags are validated separately by the Flag Parsing subsection."
+**Impact:** The verbose-prose-reduces-autonomous-misinterpretation argument from ADR-0003 isn't backed by the actual delivered content.
+
+**Recommendation:** Either drop NFR-6 from the spec (acknowledge the trade-off — workflow invocation needs its own explanatory prose), or do a real pass at trimming the Per-Spec State File Lifecycle and Queue State File reference sections (move to a separate doc or shrink to a one-line summary referencing the workflow source).
+
+---
+
+### W3. sprint_pipeline.js stage 4 returns unvalidated synthesized objects on short-circuit
+
+**Category:** Schema Validation Gap
+**Files:** `lib/workflows/sprint_pipeline.js`
+
+When review returns `recommendation: "block"` or verify fails, the pipeline stage 4 returns a hand-built object `{ storySlug, status: "blocked", branch, commits, blockers, reason }` directly — bypassing the `SPRINT_STORY_RETURN_SCHEMA`. Only the openPR-agent path validates against the schema.
+
+**Impact:** If the hand-built shape drifts from the schema, downstream consumers may break silently. Today the shape matches, but it's an accidental contract.
+
+**Recommendation:** Either (a) extract a helper `makeBlockedReturn(impl, blockers, reason)` that returns a frozen object matching the schema and test against the schema once, or (b) re-emit the synthesized object through a no-op agent call with the schema for validation (overhead but uniform). (a) is cleaner.
+
+---
+
+### W4. README Skills Reference still mentions `/spec` but it's now `project-spec`
+
+**Category:** Documentation Drift
+**Files:** `README.md` Skills Reference table
+
+The README's Skills Reference table lists `spec | /spec <prompt>`. The actual skill registered name (per its SKILL.md frontmatter and per Claude Code's invocation) is `spec` — so the slash command is `/spec`. But the directory is `project-spec`, and the v2.0.0 schema-validated-sibling-output story documented invocation under "project-spec" naming.
+
+**Impact:** Mild confusion — what's the canonical invocation? Likely `/spec` based on the skill's `name:` field.
+
+**Recommendation:** Audit and either (a) rename the skill to `project-spec` matching the directory name and other PM skills, OR (b) document the inconsistency. Out of scope for v2.0.0 hardening; flag for a future cleanup.
 
 ---
 
 ## 🔵 Info
 
-### I1. Token-count wording "2 + one file/one non-file" doesn't address 3+ token PRD+repo case
+### I1. `/code-review` references in spec aren't honored
 
-**Category:** Specification/Edge-Case
-**Files:** `skills/project-orchestrate/SKILL.md` (Mode Classification table)
+**Category:** Scope Slippage
+**Files:** Source spec (story 004 mentioned `/code-review`); CHANGELOG; ADR-0003
 
-The PRD+repo row says "Token count 2 + exactly one is a file". A user invoking `/project-orchestrate spec.md owner/repo extra-thing` (3 tokens, one file, two non-files) is undefined. Probably should abort, but the table doesn't say.
-
-**Recommendation:** Tighten the row to "Token count = 2 AND exactly one is a file" so it's unambiguous that 3+ tokens with this shape do not match. The "mixed argument" abort rule then catches it.
+The spec called out `/code-review` as a skill rewrite target. `/code-review` is a Claude Code first-party skill — not part of this package — so we cannot rewrite it. The implementation correctly scoped to `/project-cleanup` only, but the CHANGELOG and ADR-0003 should explicitly note the scope cut.
 
 ---
 
-### I2. README example always shows `--merged` before args; SKILL.md says flags can appear anywhere
+### I2. ADR-0003 says "first time the project takes that bet"
 
-**Category:** Documentation/Style-Consistency
-**Files:** `README.md` (Invocation Patterns), `skills/project-orchestrate/SKILL.md` (Flag Parsing)
+**Category:** Documentation Tone
+**Files:** `docs/adrs/0003-workflow-backed-re-plumbing.md`
 
-The README invocation table shows `/project-orchestrate --merged spec-1.md spec-2.md` — flag first. The SKILL.md Flag Parsing subsection states "flags may appear in any position". Both are correct, but a user reading the README first might infer flag-first is required.
-
-**Recommendation:** Add a one-line note under the README Invocation Patterns table: "Flags may appear before or after argument tokens; the table examples place them first by convention."
+The ADR's "first time the project has required a specific Claude Code feature beyond the basic tool set" framing might age poorly if future Claude Code basic tool sets gain or lose features. Leave as-is for now; an aside.
 
 ---
 
-### I3. ADR-0002 placeholder — orchestration-time ADR not yet created
+### I3. Workflow scripts have no test harness
 
-**Category:** Workflow/Self-Reference
-**Files:** N/A (will exist at `docs/adrs/0002-*.md` after Step 16)
+**Category:** Tooling/Maintenance
+**Files:** All `lib/workflows/*.js`
 
-Step 16 of the orchestrate skill will create an ADR documenting the architectural decisions for this orchestration (multi-spec sequential mode, queue state file design, per-spec slug-suffixed archives). That ADR is not yet on disk because Step 16 runs after this emulation phase per the orchestrate flow. Listed here only for traceability — this is expected behavior, not a defect.
+JavaScript joined the package in v2.0.0. There are no unit tests, no linter, no type checker. Future maintenance risk grows as workflows accumulate.
 
-**Recommendation:** none — Step 16 will create it.
-
----
-
-### I4. Dependency Resolution mentions "merged mode" interaction without elaboration
-
-**Category:** Specification/Forward-Reference-Ambiguity
-**Files:** `skills/project-orchestrate/SKILL.md` (Dependency Resolution intro)
-
-The Dependency Resolution intro says: "Applies only to sequential multi-path mode (and merged mode if dependencies need to inform internal ordering)." The "if dependencies need to inform internal ordering" hedge is vague — merged mode is explicitly best-effort and its semantics are deferred. Either dependency resolution runs in merged mode or it doesn't.
-
-**Recommendation:** Change to "Applies only to sequential multi-path mode. In merged mode, the legacy unified-multi-spec behavior is invoked instead and `depends_on` is not enforced (merged semantics, including dependency handling, are deferred to a follow-up spec)."
+**Recommendation:** Add `vitest` + ESLint as devDependencies and stand up a minimal test for each workflow (mock the Workflow tool primitives and assert on the structure of agent prompts and the return shape). Out of scope for v2.0.0; track as v2.1 work.
 
 ---
 
-### I5. Queue state file Meta section doesn't include `--skip-on-pause` value when set
+### I4. install.js doesn't clean up old `_workflows/` if package is downgraded
 
-**Category:** Documentation/Completeness
-**Files:** `skills/project-orchestrate/SKILL.md` (Sequential Multi-Path Mode → Queue State File)
+**Category:** Install Hygiene
+**Files:** `bin/install.js`
 
-The Queue State File template Meta section shows `**Flags:** --skip-on-pause=<true|false>, --merged=<true|false>`. The template is correct, but the surrounding prose doesn't emphasize that the Meta section is the canonical record of which flags were active for this run — useful for post-mortem when a run was paused and resumed. Minor.
+If a user upgrades to v2.0.0, then downgrades to v1.8.x, the `_workflows/` directory remains in `~/.claude/skills/`. v1.8.x skills don't reference it; no functional impact, just disk dust.
 
-**Recommendation:** Add a sentence: "The Meta section records the flags active at run start. Resume uses the recorded flags, not the flags on the resume invocation — preventing accidental flag changes mid-run."
+**Recommendation:** None critical. If we cared, install.js could note its v2 install and a downgrade script could clean. Out of scope.
+
+---
+
+### I5. Path Resolution Algorithm doesn't handle the loaded-from-cache case
+
+**Category:** Edge Case
+**Files:** `skills/project-orchestrate/SKILL.md`, `skills/project-scaffold/SKILL.md`, etc.
+
+The algorithm walks up from the absolute path of the loaded SKILL.md. If Claude Code reads SKILL.md from a cache rather than from disk (e.g., embedded plugin in a snap), the "absolute path of the loaded SKILL.md" may be ambiguous.
+
+**Recommendation:** No action — the path resolution works in all currently-supported install paths. Add a note in a future spec when this case actually arises.
 
 ---
 
@@ -101,17 +149,17 @@ The Queue State File template Meta section shows `**Flags:** --skip-on-pause=<tr
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| Phase 1: Discovery | Complete | Roles: 3 consumer roles (multi-path invoker, dependency declarer, queue-state reader). Actions: 8 (6 mode classifications + 2 flag combinations). |
-| Phase 2: Integration Seams | Adapted | Categories 1, 2, 4, 5, 6 N/A (no Dockerfiles/transpilers/IoC/services/payloads). Category 3 (Config Coverage) verified — new flags documented in SKILL.md, CONVENTIONS.md, and README; new queue state file path consistent across SKILL.md sections. |
-| Phase 3: Layer Contracts | N/A | No application layers. |
-| Phase 4: Permutation Matrix | Implicit | 6 mode classes × 2 flag bools × N spec counts. Mode Detection section covers all 6 classes plus the error case. |
-| Phase 5: Walkthrough | Documentation-based | Read each new section as each consumer role; flag cross-section inconsistencies. |
+| Phase 1: Discovery | Complete | Roles: skill consumer, workflow author, schema consumer, plugin install user. Actions: invoke skills, workflow scripts run, schemas validate. |
+| Phase 2: Integration Seams | Adapted | Cat 4 (IoC/DI) partially applies (workflow nesting constraint). Cat 1-2-3-5-6 mostly N/A. |
+| Phase 3: Layer Contracts | Partial | Schema $ref resolution is a layer-contract gap (C2). |
+| Phase 4: Permutation Matrix | Implicit | 4 install paths (global/local/plugin/manual) × 5 workflow scripts × {present, missing Workflow tool}. |
+| Phase 5: Walkthrough | Done | Per-skill consumer walkthrough. |
 | Phase 6: Coverage Report | This file | |
 
 ## Findings Count
 
-- 🔴 Critical: 0
-- 🟡 Warning: 2
+- 🔴 Critical: 2 (C1 multi_spec_queue's non-existent sub-workflow; C2 schema $ref ambiguity)
+- 🟡 Warning: 4
 - 🔵 Info: 5
 
-All warnings are specification clarity issues, not behavioral defects. Two targeted edits to `skills/project-orchestrate/SKILL.md` (Mode Classification table row + Flag/arg disambiguation sentence) resolve both warnings. Info findings can be addressed during normal future maintenance.
+Both critical findings reflect real ship blockers if the goal is shippable v2.0.0. C1 makes Sequential Multi-Path Mode non-functional. C2 may make schema validation silently degrade. Hardening pass must address at minimum C1 and C2.

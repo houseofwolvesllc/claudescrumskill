@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/houseofwolvesllc/claudescrumskill/schemas/ScaffoldOutputSchema.json",
+  "title": "ScaffoldOutputSchema",
+  "description": "Output of /project-scaffold; consumed by /project-orchestrate Step 1 to scope the run.",
+  "type": "object",
+  "required": ["scope", "scopedEpics", "scopedStories"],
+  "properties": {
+    "scope": {
+      "type": "string",
+      "enum": ["prd", "all"],
+      "description": "Whether the run is PRD-scoped or covers all open epics."
+    },
+    "scopedEpics": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Epic slugs (local mode) or milestone numbers (remote mode) created/touched by this scaffold."
+    },
+    "scopedStories": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Story slugs or issue numbers created/touched by this scaffold."
+    },
+    "designSpikeEpic": {
+      "type": "string",
+      "description": "Slug of the auto-injected design-spike epic, if any."
+    },
+    "queueStateFilePath": {
+      "type": "string",
+      "description": "Path to orchestration-queue-state.md when multi-path mode is in effect."
+    }
+  },
+  "additionalProperties": false
+}

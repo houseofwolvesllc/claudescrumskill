@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] — 2026-05-30
+
+### Added
+- **Two-layer architecture** (see [ADR-0003](docs/adrs/0003-workflow-backed-re-plumbing.md)): skills (markdown SKILL.md) own the opinion + user surface; workflow scripts (JavaScript at `lib/workflows/`) own the fan-out substrate. Skills invoke workflows via the Claude Code Workflow tool using a Path Resolution Algorithm (walk up from SKILL.md to the skills root, then descend into `_workflows/`).
+- **4 workflow scripts** at `lib/workflows/`: `sprint_pipeline.js` (per-story sprint execution as a pipeline), `elaborate_epics.js` (Pass 2 of two-pass scaffolding as one parallel wave), `adversarial_verify.js` (claimant/skeptic/judge verification of emulation findings), `review_panel.js` (multi-lens parallel review with aggregated verdict). The multi-spec sequential queue is implemented in the skill markdown rather than as a workflow because per-spec orchestration internally invokes other workflows, and the Workflow tool's nesting constraint (one level only) precludes a queue-workflow → per-spec-workflow → leaf-workflow chain.
+- **8 JSON Schemas** at `lib/workflows/schemas/`: `SpecSchema`, `EpicSchema`, `StorySchema`, `EmulationFindingSchema`, `ReviewVerdictSchema`, `SprintStoryReturnSchema`, `ScaffoldOutputSchema`, `PRDFrontmatterSchema` (all JSON Schema Draft 2020-12). Cross-skill type system for schema-validated workflow returns.
+- **`bin/install.js`** copies `lib/workflows/` to `<install-dir>/_workflows/` during postinstall (underscore prefix prevents Claude Code from registering it as a skill).
+- **README "Architecture" section** for contributors documenting the layered model, the shipped workflows and schemas, and the convention for adding new workflows.
+- **README v2.0.0 runtime callout** near Installation: notes that v2.0.0 requires Claude Code with the Workflow tool, and points users on older Claude Code installs to `npm install --save-dev @houseofwolvesllc/claude-scrum-skill@1.8.1` as a fallback.
+- **`/project-orchestrate` Before You Start item 0**: Workflow-tool availability check with explicit abort + v1.8.x fallback guidance.
+- **`/project-emulate` Phase 5.5**: Adversarial Verification of Findings (invokes `adversarial_verify.js`).
+- **`/project-cleanup` Phase 5.5**: Multi-Lens Review Panel (invokes `review_panel.js`).
+- **`/project-spec` schema-validated sibling output**: in addition to the markdown spec, writes a sibling `<timestamp>_<name>.spec.json` conforming to `SpecSchema`.
+- **ADR-0003** at `docs/adrs/0003-workflow-backed-re-plumbing.md` documenting the architectural shift, alternatives considered, and consequences.
+- **`package.json` `files` field** includes `lib/` so workflows ship in the published tarball.
+
+### Changed
+- **`/project-orchestrate` Phase 1 Step 3 (Story Execution)** rewritten to invoke `sprint_pipeline.js`. Concurrency lifts from a hardcoded 3 to up-to-`min(16, cpu_cores - 2)` per the Workflow tool's cap; per-stage barriers are removed (the barrier-removal benefit is unconditional). Pre-spawn checks (independence, persona resolution, human/cowork skip) and post-workflow persistence are documented inline. Replaces ~80 lines of Task-spawning subagent-prompt prose.
+- **`/project-orchestrate` Sequential Multi-Path Mode Per-Spec Loop** rewritten to be executed by the skill markdown directly (no wrapping workflow). The per-spec body still invokes the per-skill workflows (`sprint_pipeline.js`, `elaborate_epics.js`, `adversarial_verify.js`, `review_panel.js`) for each spec; the queue lifecycle (iteration order, `--skip-on-pause`, queue state file updates) is markdown-driven. This respects the Workflow tool's "one level of nesting only" constraint.
+- **`/project-scaffold` Two-Pass Procedure Pass 2** rewritten to invoke `elaborate_epics.js`. Pass 1 narration (single-agent skeleton extraction) unchanged.
+
+### Removed
+- **Task-spawning narrative prose** in `/project-orchestrate` Phase 1 Step 3 (the verbose subagent-prompt-structure block, the persona-routing bash snippets, the concurrency-3 cap text). Replaced by a thin Workflow-invocation directive.
+- (Scope note: `/code-review` was originally listed as a rewrite target in the source spec. It is a Claude Code first-party skill not shipped in this package; the v2.0.0 review-panel work is scoped to `/project-cleanup` only.)
+- **Pass 2 fan-out narrative prose** in `/project-scaffold` Two-Pass Procedure. Replaced by a workflow invocation.
+
+### Migration
+
+**Users:** zero migration effort. Same slash commands. Same prompts. Same artifact files (state files, ADRs, CONTEXT.md, queue state file). Same backend-mode semantics (local / GitHub / Jira / Trello). The user-facing surface is byte-for-byte unchanged.
+
+**Runtime requirement:** v2.0.0 requires a Claude Code version that exposes the **Workflow tool**. Modern Claude Code (latest CLI auto-updated, desktop app, web app, IDE extensions) all include it. If your CLI is months out of date and not auto-updating, run `npm update -g @anthropic-ai/claude-code` before upgrading. Users who cannot or do not want to update Claude Code should pin to the fallback:
+
+```bash
+npm install --save-dev @houseofwolvesllc/claude-scrum-skill@1.8.1
+```
+
+**Plugin / extension authors** who hooked into the v1.x verbose Task-spawning prose sections in `/project-orchestrate` Phase 1 Step 3, `/project-scaffold` Pass 2, or the multi-spec queue per-spec loop will need to update — those sections are now thin Workflow-invocation directives. Hook into the workflow scripts directly (`lib/workflows/<name>.js`) if extending behavior, or invoke the underlying agents through the Workflow tool.
+
+**State file backward compatibility:** v2.0.0 reads existing `orchestration-state.md`, `orchestration-state-<slug>.previous.md`, and `orchestration-queue-state.md` files in their v1.8.x markdown format. Mid-run upgrades (start on v1.8.1, finish on v2.0.0) work — the state files are interchangeable.
+
 ## [1.8.1] — 2026-05-28
 
 ### Changed

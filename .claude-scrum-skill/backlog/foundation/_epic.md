@@ -2,11 +2,11 @@
 title: Foundation
 slug: foundation
 status: closed
-created: 2026-05-28T05:04:12Z
+created: 2026-05-30T00:14:39Z
 ---
 
 # Foundation
 
-Document the new conventions and user-facing patterns before the orchestrate skill cross-references them. Two stories that touch different files (CONVENTIONS.md and README.md) and can run in parallel.
+Package structure additions: `lib/workflows/` directory tree, 8 JSON Schema files, `bin/install.js` update, `package.json` `files` field update, README architecture section for contributors.
 
-Maps to **Phase 1 — Foundation** in the source spec (tasks 1-2).
+Maps to **Phase 1 — Foundation** in the source spec (tasks 1-5).
