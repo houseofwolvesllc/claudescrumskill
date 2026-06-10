@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/houseofwolvesllc/claudescrumskill/schemas/PRDFrontmatterSchema.json",
+  "title": "PRDFrontmatterSchema",
+  "description": "YAML frontmatter parsed from PRD documents. All fields optional.",
+  "type": "object",
+  "properties": {
+    "title": { "type": "string" },
+    "scaffold_mode": {
+      "type": "string",
+      "enum": ["single-pass", "two-pass"]
+    },
+    "design_spike": { "type": "boolean" },
+    "depends_on": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Other PRD specs (path or basename) that must complete before this one in sequential multi-path mode."
+    }
+  },
+  "additionalProperties": false
+}

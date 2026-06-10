@@ -5,6 +5,7 @@ const path = require('path');
 
 const HOME = process.env.HOME || process.env.USERPROFILE;
 const SOURCE_DIR = path.join(__dirname, '..', 'skills');
+const WORKFLOWS_SOURCE_DIR = path.join(__dirname, '..', 'lib', 'workflows');
 const IS_GLOBAL = process.env.npm_config_global === 'true';
 
 // Global install → ~/.claude/skills/
@@ -74,6 +75,14 @@ for (const skill of skills) {
   } else {
     console.log(`  ⚠️  ${skill} — source not found, skipping`);
   }
+}
+
+// Copy lib/workflows/ → <skillsDir>/_workflows/ (v2.0.0+).
+// Underscore prefix prevents Claude Code from registering as a skill.
+if (fs.existsSync(WORKFLOWS_SOURCE_DIR)) {
+  const workflowsDest = path.join(skillsDir, '_workflows');
+  copyRecursive(WORKFLOWS_SOURCE_DIR, workflowsDest);
+  console.log('  ⚙️  _workflows (lib/workflows + schemas)');
 }
 
 // Add .claude-scrum-skill to .gitignore if not already present (local install only)

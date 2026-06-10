@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/houseofwolvesllc/claudescrumskill/schemas/EmulationFindingSchema.json",
+  "title": "EmulationFindingSchema",
+  "description": "Single finding produced by /project-emulate; consumed by adversarial_verify.js.",
+  "type": "object",
+  "required": ["id", "severity", "category", "title", "body"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique finding identifier (e.g., C1, W3, I7)."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["critical", "warning", "info"]
+    },
+    "category": {
+      "type": "string",
+      "description": "Free-form classification (e.g., 'Integration/Dockerfile/COPY', 'Layer/ResponseFormat', 'Documentation/Consistency')."
+    },
+    "title": {
+      "type": "string",
+      "description": "One-line finding summary."
+    },
+    "body": {
+      "type": "string",
+      "description": "Detailed finding description including reproduction or evidence."
+    },
+    "affected_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Repo-relative paths of files implicated by the finding."
+    }
+  },
+  "additionalProperties": false
+}

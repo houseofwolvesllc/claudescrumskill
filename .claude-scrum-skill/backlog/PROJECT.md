@@ -1,13 +1,11 @@
 ---
-name: Multi-Spec Sequential Orchestration
-created: 2026-05-28T05:04:12Z
+name: v2.0.0 — Workflow-Backed Re-Plumbing
+created: 2026-05-30T00:14:39Z
 sprints: []
 ---
 
-# Multi-Spec Sequential Orchestration
+# v2.0.0 — Workflow-Backed Re-Plumbing
 
-Formalize `/project-orchestrate`'s behavior when given multiple PRD paths. Default becomes sequential per-spec orchestration: each spec receives its own complete orchestration (Phase 1 → Phase 2 → Phase 3 → ADR → state cleanup) before the next begins. Inter-spec ordering can be overridden by `depends_on` PRD frontmatter via topological sort. Opt-in `--skip-on-pause` advances the queue when one spec hits a safety gate; opt-in `--merged` preserves the legacy unified-multi-spec behavior with a deprecation warning.
+Migrate the fan-out, journaling, and text-parsing internals of claudescrumskill from prose-encoded markdown to actual workflow scripts. Keep every skill's markdown surface and slash-command name unchanged; users see no UX change. Introduce schema-validated cross-skill hand-offs. Hard runtime dependency on the Claude Code Workflow tool (major version bump justification).
 
-Single-path, repo-identifier, and no-arg invocations are unchanged from v1.7.1.
-
-Source spec: `docs/specs/20260527_215752_multi_spec_sequential_orchestration.md`
+Source spec: `docs/specs/20260529_170334_workflow_backed_re_plumbing.md`

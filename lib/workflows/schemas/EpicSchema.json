@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/houseofwolvesllc/claudescrumskill/schemas/EpicSchema.json",
+  "title": "EpicSchema",
+  "description": "Single epic shape with stories inlined to avoid cross-file $ref resolution ambiguity.",
+  "type": "object",
+  "required": ["name", "slug", "description"],
+  "properties": {
+    "name": { "type": "string" },
+    "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+    "description": { "type": "string" },
+    "depends_on": { "type": "array", "items": { "type": "string" } },
+    "shared_design_concerns": { "type": "array", "items": { "type": "string" } },
+    "slice": {
+      "type": "object",
+      "properties": {
+        "start_line": { "type": "integer", "minimum": 1 },
+        "end_line": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "epic_type": { "type": "string", "enum": ["design-spike"] },
+    "stories": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Story" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Story": {
+      "type": "object",
+      "required": ["title", "slug", "acceptance_criteria", "points", "executor"],
+      "properties": {
+        "title": { "type": "string" },
+        "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+        "acceptance_criteria": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "technical_context": { "type": "string" },
+        "points": { "type": "integer", "enum": [1, 2, 3, 5, 8, 13] },
+        "executor": { "type": "string", "enum": ["claude", "human", "cowork"] },
+        "priority": { "type": "string", "enum": ["P0-critical", "P1-high", "P2-medium", "P3-low"] },
+        "persona": { "type": "string", "enum": ["impl", "ops", "research"] },
+        "blocked_by": { "type": "array", "items": { "type": "string" } },
+        "blocks": { "type": "array", "items": { "type": "string" } },
+        "labels": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

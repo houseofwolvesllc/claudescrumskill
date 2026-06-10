@@ -173,29 +173,27 @@ After Pass 1 completes, evaluate the epic count:
 
 ### Pass 2 — Per-Epic Elaboration
 
-Spawn one subagent per epic. Each subagent receives a focused context:
+Pass 2 is performed by the **elaborate_epics.js** workflow script. Replaces the v1.x Task-based fan-out (concurrency cap of 3) with one parallel wave (concurrency 16) and schema-validated returns.
 
-- The **global preamble** from Pass 1 (project overview, glossary, NFRs)
-- Its **assigned epic's PRD slice**, extracted using `slice.start_line`
-  and `slice.end_line` from the manifest
-- A **skeleton summary** of sibling epics (name, slug, one-paragraph
-  description, dependencies) — for cross-epic dependency awareness, NOT
-  for elaboration
+#### Path Resolution
 
-Each Pass 2 subagent produces the complete story list for its epic:
+Workflow script ships at `<skills-root>/_workflows/elaborate_epics.js`, where `<skills-root>` is the parent of this SKILL.md's parent directory. For `~/.claude/skills/project-scaffold/SKILL.md`, the absolute workflow path is `~/.claude/skills/_workflows/elaborate_epics.js`.
 
-- Story titles
-- Acceptance criteria
-- Technical context
-- Story points (per CONVENTIONS.md guidelines)
-- Executor assignment (per CONVENTIONS.md guidelines)
-- Persona designation (local mode: the `persona` frontmatter field; GitHub/Jira/Trello modes: a `persona:*` label — see CONVENTIONS.md "Persona Labels" and PERSONAS.md for the canonical set)
-- Dependency declarations (`blocked_by`, `blocks`)
-- All other required frontmatter fields
+#### Invocation
 
-**Concurrency cap:** Up to 3 Pass 2 subagents in parallel (matches
-`/project-orchestrate` Step 3 convention). Additional epics queue and
-start as earlier ones complete.
+Invoke the Workflow tool with `scriptPath` set to the resolved path and `args`:
+
+```yaml
+skeleton:          { project: { name, description, global_preamble, non_functional_requirements }, epics: [...] }   # the Pass 1 manifest
+prdPath:           <absolute path to the PRD>
+conventionsPath:   ../shared/references/CONVENTIONS.md   # optional but recommended
+```
+
+The workflow returns `Epic[]` per `lib/workflows/schemas/EpicSchema.json`, each with `stories[]` populated. Failed epics return `null` in the array.
+
+#### Per-epic context (encoded by the workflow)
+
+Each `elaborate:<epic-slug>` agent receives the global preamble, its epic's PRD slice (using `slice.start_line` / `slice.end_line` from the manifest), and a sibling-epic skeleton summary for cross-epic dependency awareness. The output story shape matches `lib/workflows/schemas/StorySchema.json`: title, slug, acceptance_criteria, technical_context, points (Fibonacci), executor, persona, priority, blocked_by, blocks, labels.
 
 ### Story Assembly
 

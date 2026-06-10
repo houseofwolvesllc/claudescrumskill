@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/houseofwolvesllc/claudescrumskill/schemas/StorySchema.json",
+  "title": "StorySchema",
+  "description": "Single story shape produced by Pass 2 elaboration; consumed by sprint planning and execution.",
+  "type": "object",
+  "required": ["title", "slug", "acceptance_criteria", "points", "executor"],
+  "properties": {
+    "title": { "type": "string" },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "technical_context": {
+      "type": "string",
+      "description": "Architecture notes, relevant files, approach guidance. May be empty if the story body is self-explanatory."
+    },
+    "points": {
+      "type": "integer",
+      "enum": [1, 2, 3, 5, 8, 13],
+      "description": "Fibonacci estimate per CONVENTIONS.md story point guidelines."
+    },
+    "executor": {
+      "type": "string",
+      "enum": ["claude", "human", "cowork"]
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["P0-critical", "P1-high", "P2-medium", "P3-low"]
+    },
+    "persona": {
+      "type": "string",
+      "enum": ["impl", "ops", "research"],
+      "description": "Subagent posture preamble selection. Default is impl."
+    },
+    "blocked_by": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Slugs (or epic/slug references) of stories that must complete first."
+    },
+    "blocks": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "labels": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/houseofwolvesllc/claudescrumskill/schemas/ReviewVerdictSchema.json",
+  "title": "ReviewVerdictSchema",
+  "description": "Output of a single review pass (per-lens verdict in review_panel.js, or single-pass review in older skills).",
+  "type": "object",
+  "required": ["recommendation", "findings", "summary"],
+  "properties": {
+    "recommendation": {
+      "type": "string",
+      "enum": ["accept", "accept-with-followups", "block"]
+    },
+    "findings": {
+      "type": "object",
+      "required": ["critical", "warning", "info"],
+      "properties": {
+        "critical": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Finding" }
+        },
+        "warning": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Finding" }
+        },
+        "info": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Finding" }
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "Reviewer's one-paragraph summary of the pass."
+    },
+    "lens": {
+      "type": "string",
+      "enum": ["correctness", "security", "style", "tests"],
+      "description": "Set by review_panel.js when running multi-lens; absent in single-pass review."
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "Finding": {
+      "type": "object",
+      "required": ["title", "severity", "body"],
+      "properties": {
+        "title": { "type": "string" },
+        "location": {
+          "type": "string",
+          "description": "file:line or section reference; optional but recommended."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "warning", "info"]
+        },
+        "body": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

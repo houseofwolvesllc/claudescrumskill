@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/houseofwolvesllc/claudescrumskill/schemas/SprintStoryReturnSchema.json",
+  "title": "SprintStoryReturnSchema",
+  "description": "Per-story return value from sprint_pipeline.js. The calling skill persists results to state file and story frontmatter.",
+  "type": "object",
+  "required": ["storySlug", "status"],
+  "properties": {
+    "storySlug": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["done", "blocked", "failed"]
+    },
+    "branch": {
+      "type": "string",
+      "description": "Story branch name created during implementation (e.g., story/12-auth-endpoint)."
+    },
+    "prUrl": {
+      "type": "string",
+      "format": "uri",
+      "description": "GitHub mode only. PR URL opened by the story branch."
+    },
+    "commits": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Commit SHAs produced by the story."
+    },
+    "blockers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Free-text descriptions of why the story is blocked. Populated when status = blocked."
+    },
+    "reason": {
+      "type": "string",
+      "description": "Free-text explanation when status = failed or blocked."
+    }
+  },
+  "additionalProperties": false
+}
