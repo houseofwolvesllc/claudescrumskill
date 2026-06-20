@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] — 2026-06-20
+
+### Added
+- **Engineering baseline** (`skills/shared/references/ENGINEERING_BASELINE.md`): an always-on engineering standard — Clean Code, Test-Driven Development, and a simple-design "Arbitration Rule" — that `project-spec` reads at design time and `project-orchestrate` injects into every implementation and review subagent. Order of precedence: project `CLAUDE.md` > engineering baseline > situational guidance.
+- **`design-patterns` skill**: a counterweight-first Gang of Four pattern catalog (all 23, paraphrased) used to name candidate patterns at design time and refactor toward them during core-domain implementation. Surfaces only on a demonstrated design smell; dormant on CRUD, scripts, and glue code.
+- **`domain-modeling` skill**: tactical Domain-Driven Design guidance (entities, value objects, aggregates, repositories, services, factories, ubiquitous language) for complex core domains. Dormant on CRUD and generic/supporting subdomains per Evans's own scoping.
+- **Epic `subdomain` classification** (`core` / `supporting` / `generic`): added to `SpecSchema` and persisted by `project-scaffold` into epic metadata (`_epic.md` frontmatter in local mode; a `subdomain:<value>` label in remote modes). This is the single authoritative source `project-orchestrate` reads to gate situational guidance to core-domain epics.
+- **Design record** at `docs/specs/20260618_132133_design_guidance_layering.md` documenting the placement rationale, the spec → scaffold → orchestrate → pipeline data flow, and the source-grounding pass.
+- **Source attribution**: `NOTICE` and a new README "Acknowledgments" section credit *Clean Code* (Robert C. Martin), *Test-Driven Development: By Example* (Kent Beck), *Domain-Driven Design* (Eric Evans), and *Design Patterns* (the Gang of Four) as the intellectual sources of the engineering guidance. The guidance is expressed in the project's own words — no verbatim text from the source works.
+
+### Changed
+- **`/project-spec`** runs two new design passes: a strategic-DDD pass (captures the ubiquitous language and classifies each epic's `subdomain`) and a GoF candidate pattern-naming pass (patterns are named only as `candidate / justified / revisitable`, never binding). Emits `subdomain` per epic in the `.spec.json` sibling.
+- **`/project-orchestrate`** reads the engineering baseline and mandates it for every spawned subagent; reads each epic's `subdomain` and passes `baselinePath` (always) plus `situationalGuidance` (the `design-patterns` and `domain-modeling` skills, for `core` epics only) to the sprint pipeline.
+- **`/project-scaffold`** persists the epic `subdomain` from the spec into epic metadata and into the Pass-1 epic skeleton.
+- **`sprint_pipeline.js`** threads `baselinePath` (injected into every story) and `situationalGuidance` (core-domain stories only) into the implementation and review subagent prompts.
+- **`SpecSchema`** Epic definition gains an optional `subdomain` enum (`core` / `supporting` / `generic`).
+- **`marketplace.json`** now registers `spec`, `design-patterns`, and `domain-modeling` (the first was previously omitted).
+
+### Migration
+
+**Users:** zero migration effort. Same slash commands, prompts, and artifact files. The engineering baseline now shapes generated code (tests-first, simpler designs, earned abstractions) — a behavioral enhancement, not an interface change. Specs and backlogs produced by earlier versions still work: an epic with no `subdomain` classification is treated as generic and simply receives the baseline without the situational pattern/DDD guidance. No schema field is newly required; `subdomain` is optional.
+
 ## [2.0.0] — 2026-05-30
 
 ### Added
