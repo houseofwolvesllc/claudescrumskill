@@ -4,6 +4,8 @@ An open-source npm package of Claude Code skills that give you a complete scrum 
 
 Includes project scaffolding, sprint planning, status tracking, sprint releases, full-project emulation testing, autonomous orchestration, and project cleanup.
 
+It is also an **opinionated spec-and-implementation process**: its engineering guidance is grounded in the principles of four foundational software texts — Robert C. Martin's *Clean Code*, Kent Beck's *Test-Driven Development: By Example*, Eric Evans's *Domain-Driven Design*, and the Gang of Four's *Design Patterns* — distilled into an always-on engineering baseline plus on-demand design-pattern and domain-modeling guidance. See [Acknowledgments](#acknowledgments).
+
 ```
 Manual mode — you invoke each skill:
 
@@ -54,6 +56,7 @@ PRD (optional)  -->  /project-orchestrate
 - [Autonomous Orchestration](#autonomous-orchestration)
 - [Customization](#customization)
 - [Tips](#tips)
+- [Acknowledgments](#acknowledgments)
 - [License](#license)
 
 ---
@@ -348,8 +351,12 @@ Create a fine-grained Personal Access Token:
 | **project-emulate** | `/project-emulate` | Integration seams, layer contracts, cross-service payloads, full lifecycle walkthrough |
 | **project-orchestrate** | `/project-orchestrate [prd] [repo]` | Autonomous lifecycle driver |
 | **project-cleanup** | `/project-cleanup [path] [--fix]` | Build, lint, dead code, and test coverage |
+| **design-patterns** | `/design-patterns` | Gang of Four pattern guidance, counterweight-first; composed by `spec` (design) and `project-orchestrate` (core-domain implementation) |
+| **domain-modeling** | `/domain-modeling` | Tactical Domain-Driven Design guidance; composed by `spec` and `project-orchestrate` for core-domain epics |
 
 The `[owner/repo]` argument is only needed in GitHub mode. Jira, Trello, and local modes read from config.
+
+`design-patterns` and `domain-modeling` are **situational guidance** layered on top of the always-on engineering baseline (`skills/shared/references/ENGINEERING_BASELINE.md`). They are pulled in automatically by `spec` and `project-orchestrate` for `core`-classified subdomains, and are also invocable directly. See [Acknowledgments](#acknowledgments) for their sources.
 
 ---
 
@@ -564,6 +571,29 @@ skills/shared/
 - **For related specs, declare `depends_on` in PRD frontmatter** rather than relying on argument order. `/project-orchestrate` will topologically sort the queue and abort on cycles or missing deps before any spec runs — catches ordering mistakes up front instead of mid-orchestration.
 
 ---
+
+## Acknowledgments
+
+The engineering guidance in this package — the always-on baseline plus the
+`design-patterns` and `domain-modeling` skills — is grounded in the principles of
+four foundational software texts. The guidance is expressed in this project's own
+words; these works are credited as its intellectual sources. Their authors are not
+affiliated with and do not endorse this project.
+
+- **Robert C. Martin**, *Clean Code: A Handbook of Agile Software Craftsmanship*
+  (Prentice Hall, 2008) — the engineering baseline's naming, function, comment, and
+  code-quality principles.
+- **Kent Beck**, *Test-Driven Development: By Example* (Addison-Wesley, 2002) — the
+  baseline's red/green/refactor discipline and simple-design rules.
+- **Eric Evans**, *Domain-Driven Design: Tackling Complexity in the Heart of
+  Software* (Addison-Wesley, 2003) — the `domain-modeling` skill's tactical
+  building blocks and ubiquitous-language guidance.
+- **Erich Gamma, Richard Helm, Ralph Johnson, John Vlissides** ("the Gang of
+  Four"), *Design Patterns: Elements of Reusable Object-Oriented Software*
+  (Addison-Wesley, 1994) — the `design-patterns` skill's pattern catalog.
+
+If you find this guidance useful, read the originals — they go far deeper than any
+distillation can.
 
 ## License
 

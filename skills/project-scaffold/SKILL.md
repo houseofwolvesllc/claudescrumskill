@@ -146,6 +146,7 @@ epics:
   - name: <string>
     slug: <kebab-case string>
     description: <one-paragraph string>
+    subdomain: <core | supporting | generic — from the spec's .spec.json epic entry (SpecSchema)>
     slice:
       start_line: <int>
       end_line: <int>
@@ -427,6 +428,7 @@ For each epic, create `<backlog-path>/<epic-slug>/`:
 title: <Epic Name>
 slug: <epic-slug>
 status: open
+subdomain: <core | supporting | generic>
 created: <ISO timestamp>
 ---
 
@@ -434,6 +436,14 @@ created: <ISO timestamp>
 
 <Epic description from PRD>
 ```
+
+**Carry the `subdomain` classification** from the spec's `.spec.json` epic entry
+(per `SpecSchema`) into epic metadata: the `_epic.md` frontmatter above in local
+mode, and a `subdomain:<value>` label on the epic's issues in remote modes. This
+is the single authoritative carrier `/project-orchestrate` reads to gate
+situational design guidance (`design-patterns`, `domain-modeling`) to `core`
+epics. If the spec carries no `subdomain` (e.g., not produced by the extended
+`/project-spec`), omit the field — orchestrate then treats the epic as generic.
 
 ### Local Step 5: Create Story Files
 

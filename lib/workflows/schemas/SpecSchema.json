@@ -43,6 +43,7 @@
         "name": { "type": "string" },
         "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
         "description": { "type": "string" },
+        "subdomain": { "type": "string", "enum": ["core", "supporting", "generic"] },
         "depends_on": { "type": "array", "items": { "type": "string" } },
         "shared_design_concerns": { "type": "array", "items": { "type": "string" } },
         "slice": {
