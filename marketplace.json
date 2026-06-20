@@ -4,6 +4,10 @@
   "version": "1.0.0",
   "skills": [
     {
+      "name": "spec",
+      "path": "skills/project-spec"
+    },
+    {
       "name": "project-scaffold",
       "path": "skills/project-scaffold"
     },
@@ -30,6 +34,14 @@
     {
       "name": "project-cleanup",
       "path": "skills/project-cleanup"
+    },
+    {
+      "name": "design-patterns",
+      "path": "skills/design-patterns"
+    },
+    {
+      "name": "domain-modeling",
+      "path": "skills/domain-modeling"
     }
   ]
 }

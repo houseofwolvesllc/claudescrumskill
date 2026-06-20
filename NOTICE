@@ -1,2 +1,17 @@
 Claude Scrum Skill
 Copyright 2026 House of Wolves LLC
+
+The engineering-guidance skills in this product (the engineering baseline, the
+design-patterns skill, and the domain-modeling skill) are derived from the
+principles in the following works. They are credited here as intellectual
+sources; the guidance is expressed in this project's own words. The authors are
+not affiliated with and do not endorse this project, and all rights in the
+original works remain with their authors and publishers:
+
+- Robert C. Martin, "Clean Code: A Handbook of Agile Software Craftsmanship"
+  (Prentice Hall, 2008)
+- Kent Beck, "Test-Driven Development: By Example" (Addison-Wesley, 2002)
+- Eric Evans, "Domain-Driven Design: Tackling Complexity in the Heart of
+  Software" (Addison-Wesley, 2003)
+- Erich Gamma, Richard Helm, Ralph Johnson, and John Vlissides, "Design Patterns:
+  Elements of Reusable Object-Oriented Software" (Addison-Wesley, 1994)

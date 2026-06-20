@@ -1,0 +1,87 @@
+{
+  "title": "Design Guidance Layering — GoF, DDD & TDD Across Root, Spec, and Orchestration",
+  "overview": "A design record (not a build plan) fixing where guidance from Design Patterns (GoF), Domain-Driven Design (Evans), and TDD (Beck) belongs. Placement is decided by a two-axis test — firing frequency and cost-when-idle. Clean Code and TDD (both halves) are universal and live in root CLAUDE.md. GoF and DDD are harmful-when-idle, so rather than always-on context or autonomously-triggered skills, they are authored once as thin modules (design-patterns, domain-modeling) and composed by the existing orchestration skills (Option C): project-spec pulls them in at design time (strategic DDD + candidate pattern-naming, advisory) and project-orchestrate at implementation time (active, for core-domain epics only). Core-vs-generic is classified once at design time via a per-epic subdomain tag that orchestrate reads to gate injection; default off when untagged, so harm-when-idle is zero. One root arbitration line subordinates all patterns/domain layers to simple design and reconciles the books with Clean Code. All prior open questions are resolved.",
+  "objectives": {
+    "primary": [
+      "Establish a single explicit placement principle (firing frequency + harm-when-idle) for slotting guidance.",
+      "Decide and record each book's home: root CLAUDE.md, extended project-spec, extended project-orchestrate, or a new composed module.",
+      "Specify how the design-patterns and domain-modeling modules are composed by project-spec (design) and project-orchestrate (implementation), with a per-epic subdomain gate that keeps them off CRUD/generic work.",
+      "Record the conflicts with Clean Code / simple design and the single root arbitration line that reconciles them."
+    ],
+    "secondary": [
+      "Capture the ten-item resolved decision log so rationale survives beyond the conversation.",
+      "Keep root CLAUDE.md lean: one arbitration line, no catalog dumps.",
+      "Confirm no open questions remain (slugs, advisory-vs-active, and gating all resolved)."
+    ]
+  },
+  "epics": [
+    {
+      "name": "Root CLAUDE.md — arbitration line + universal TDD",
+      "slug": "root-claude-md-tdd-arbitration",
+      "description": "Add one arbitration line subordinating patterns and domain layers to simple design, and confirm/complete the universal TDD workflow (red-green-refactor, small-steps/triangulation) in the existing Tests section without a duplicate TDD block or any project-level TDD section.",
+      "depends_on": [],
+      "shared_design_concerns": [
+        "The arbitration line is the context every other artifact relies on; it must land first.",
+        "Root already contains the three laws of TDD and FIRST — complete, do not duplicate."
+      ]
+    },
+    {
+      "name": "design-patterns module (new) — faithful 23-pattern catalog, counterweight-first",
+      "slug": "design-patterns-module",
+      "description": "New thin top-level skill. Body leads with an anti-over-engineering counterweight (refactor-toward-patterns) before the faithful classic 23-pattern GoF catalog, in body/linked files for progressive disclosure. Description is a conservative module-purpose statement (invoked by parents; safe if encountered standalone), not an autonomous CRUD-gated trigger.",
+      "depends_on": ["root-claude-md-tdd-arbitration"],
+      "shared_design_concerns": [
+        "Counterweight preamble — not selective omission — prevents ceremonial use of patterns that collapse into language features.",
+        "Authored once; consumed at design (name candidates) and implementation (refactor toward) phases."
+      ]
+    },
+    {
+      "name": "domain-modeling module (new) — tactical DDD, decision-oriented",
+      "slug": "domain-modeling-module",
+      "description": "New thin top-level skill carrying tactical DDD (rule placement, aggregate boundaries, entity-vs-value-object, domain events, invariants, ubiquitous-language alignment). Decision-oriented body, not a glossary. Conservative module-purpose description scoped to complex core domains per Evans.",
+      "depends_on": ["root-claude-md-tdd-arbitration"],
+      "shared_design_concerns": [
+        "Core-domain scoping is Evans's own thesis — expressed via the subdomain gate, not an invocation gate.",
+        "Carries the deeper modeling judgment a project CLAUDE.md bullet cannot."
+      ]
+    },
+    {
+      "name": "project-spec extension — strategic DDD + GoF pattern-naming + subdomain tagging",
+      "slug": "project-spec-strategic-ddd-gof",
+      "description": "Fold a strategic-DDD pass (ubiquitous language, bounded contexts, and per-epic subdomain classification of core/supporting/generic) and a GoF candidate pattern-naming pass into spec generation, surfaced only via project-spec composition. GoF naming is bound by the candidate/justified/revisitable guardrail. The subdomain tag is the single authoritative source consumed downstream by project-orchestrate.",
+      "depends_on": ["design-patterns-module", "domain-modeling-module"],
+      "shared_design_concerns": [
+        "Surface GoF/DDD at design time via composition, never by broadening standalone descriptions.",
+        "Classify subdomain once here; downstream only reads it.",
+        "Guardrail: pattern named = candidate + justified by a real axis of variation + revisitable at build."
+      ]
+    },
+    {
+      "name": "project-orchestrate extension — subdomain-gated guidance injection",
+      "slug": "project-orchestrate-subdomain-gate",
+      "description": "At implementation time, read each epic's subdomain tag and inject the design-patterns + domain-modeling guidance into the implementing subagent's prompt for core epics only (active, counterweighted by the root arbitration line). Omit for supporting/generic; default off when untagged. Never re-derive core-vs-generic — read the spec's classification.",
+      "depends_on": ["design-patterns-module", "domain-modeling-module", "project-spec-strategic-ddd-gof"],
+      "shared_design_concerns": [
+        "Classify once at design time; orchestrate only reads the tag (single-representation rule).",
+        "Active mode stays subordinate to simple design: simplest sufficient code; pattern only when variation materialized.",
+        "Fail-safe: untagged spec injects nothing — harm-when-idle stays zero."
+      ]
+    }
+  ],
+  "dependencies": [
+    "Root CLAUDE.md (existing Clean Code + Tests sections) as the edit target for A1.",
+    "project-spec skill as the extension target for A2 (also produces the subdomain tag).",
+    "project-orchestrate skill as the extension target for A3 (consumes the subdomain tag; spawns per-story subagents that already read CLAUDE.md and persona preambles).",
+    "_reference/ source PDFs (Clean Code/Martin; GoF/Gamma et al.; DDD/Evans; TDD/Beck) — git-ignored, citable while authoring.",
+    "Existing project CLAUDE.md already encodes tactical-DDD conventions (repositories, domain mapping) — informs the domain-modeling module's scope."
+  ],
+  "design_concerns": [
+    "Option C (composition) eliminates harm-when-idle: modules load only when project-spec/project-orchestrate pull them in, and at implementation only for core epics.",
+    "GoF vs. simple-design/emergence is the one real conflict; reconciled by refactoring toward patterns (Kerievsky) and the root arbitration line.",
+    "DDD 'anemic model is a smell' agrees with Clean Code 'no data/behavior hybrids' — synergy, not conflict.",
+    "Subdomain classification is single-sourced in the spec; orchestrate must not re-derive it.",
+    "Non-goals: no TDD skill, no modernized GoF subset, no standalone strategic-DDD skill, no autonomous mid-edit firing, no sprint/story breakdown."
+  ],
+  "scaffold_mode": "single-pass",
+  "design_spike": false
+}
