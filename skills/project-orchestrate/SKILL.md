@@ -425,9 +425,11 @@ For each entry in the workflow's return:
 - `status: "blocked"` — Record `blockers[]` and `reason` in the state file. Add the `blocked` label to the story (or mark blocked locally). Continue.
 - `status: "failed"` — Same persistence as blocked, plus log the failure for sprint-release to roll over.
 
-#### Concurrency and barriers
+#### Concurrency, isolation, and barriers
 
-The workflow runs up to `min(16, cpu_cores - 2)` stories concurrently with no per-stage barriers — each story's pipeline is independent, so one slow review doesn't gate other stories' implementations. The barrier-removal benefit is unconditional; the concurrency lift is conditional on host cores (a 4-core host gets concurrency 2, an 8-core host gets 6, a 18+-core host gets the full 16). On all hosts this still beats v1.x's hardcoded 3 + barriers model on most sprint sizes.
+The workflow runs up to `min(16, cpu_cores - 2)` stories concurrently with no per-stage barriers — each story's chain is independent, so one slow review doesn't gate other stories' implementations. The barrier-removal benefit is unconditional; the concurrency lift is conditional on host cores (a 4-core host gets concurrency 2, an 8-core host gets 6, a 18+-core host gets the full 16). On all hosts this still beats v1.x's hardcoded 3 + barriers model on most sprint sizes.
+
+Concurrent stories share one git repository, so the workflow keeps them off each other's toes with a single invariant: **the main working tree is mutated only by the serialized local-mode merge step.** Implement and verify run in isolated git worktrees (each story branches, commits, and builds in its own tree); review only diffs refs without checking out; and in local mode the per-story merges into the shared release branch are serialized behind a lock. This is why the **Independence check** (above) need not be perfect: even if two file-overlapping stories run together, they cannot corrupt each other's branch or commits. The workflow also re-enforces dependencies internally — a story whose `blocked_by` names another story *in the same batch* waits for that story to finish `done` before it starts, and branches from the release branch only after the blocker has merged.
 
 #### Progress updates
 
