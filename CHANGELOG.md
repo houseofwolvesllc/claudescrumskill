@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.1.1] — 2026-06-21
 
 ### Fixed
 - **Sprint pipeline git race** (`lib/workflows/sprint_pipeline.js`): story chains ran concurrently in one shared working tree, so parallel `git checkout -b` + commits (and, in local mode, fan-in merges into the release branch) could corrupt one another — worsened by intra-epic file overlap. The execution model now holds one invariant: the main working tree is mutated only by a serialized local-mode merge step. Implement and verify run in isolated git worktrees, review diffs refs without checking out, and local-mode merges into the shared release branch are serialized behind a lock. This is a pre-existing flaw dating to the v2.0.0 foundation, not a 2.1.0 regression; the engineering baseline added in 2.1.0 made stories touch more files and surfaced it more often.
