@@ -81,6 +81,16 @@ test('deepMerge is idempotent: merging an already-merged result equals the first
   assert.deepEqual(twice, once);
 });
 
+test('deepMerge lets a user scalar replace a default object wholesale', () => {
+  const merged = deepMerge({ scaffold: { design_spike_enabled: true } }, { scaffold: 'off' });
+  assert.equal(merged.scaffold, 'off');
+});
+
+test('deepMerge lets a user object replace a default scalar wholesale', () => {
+  const merged = deepMerge({ scaffold: 'off' }, { scaffold: { design_spike_enabled: true } });
+  assert.deepEqual(merged.scaffold, { design_spike_enabled: true });
+});
+
 test('installConfig on a fresh dest writes the default verbatim and reports action default', () => {
   const dir = freshTempDir();
   const defaultPath = writeDefault(dir);
@@ -146,6 +156,22 @@ test('installConfig writes 2-space-indented JSON with a trailing newline', () =>
   assert.equal(written, `${JSON.stringify(DEFAULT_CONFIG, null, 2)}\n`);
   assert.ok(written.endsWith('\n'));
   assert.match(written, /\n {2}"paths"/);
+});
+
+test('installConfig recovers a malformed config, then merges on the next run with the backup intact', () => {
+  const dir = freshTempDir();
+  const defaultPath = writeDefault(dir);
+  const destPath = path.join(dir, 'config.json');
+  const malformed = '{ not json';
+  fs.writeFileSync(destPath, malformed);
+
+  const recovered = installConfig(defaultPath, destPath);
+  const reRun = installConfig(defaultPath, destPath);
+
+  assert.equal(recovered.action, 'recovered');
+  assert.equal(reRun.action, 'merged');
+  assert.equal(fs.readFileSync(`${destPath}.bak`, 'utf8'), malformed);
+  assert.deepEqual(JSON.parse(fs.readFileSync(destPath, 'utf8')), DEFAULT_CONFIG);
 });
 
 test('installConfig is idempotent: a second run yields a byte-identical file', () => {
