@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.1.2] — 2026-06-24
 
 ### Fixed
 - **Installer no longer destroys user config on upgrade** (`bin/install.js`): the npm `postinstall` recopied `skills/shared/config.json` unconditionally, wiping user settings (output `paths`, `jira`/`trello` keys, `scaffold` thresholds) on every install. `config.json` is now treated as the single user-owned file: fresh installs copy the default verbatim; upgrades deep-merge shipped defaults with the existing file (user values win, new default keys flow in); a malformed config is backed up to `config.json.bak` before a fresh default is written. Orphan keys (absent from defaults) are preserved, not pruned; arrays are treated as leaf values. Every other file in the install tree still overwrites unconditionally.
