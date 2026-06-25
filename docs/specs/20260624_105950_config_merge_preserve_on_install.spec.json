@@ -1,0 +1,46 @@
+{
+  "title": "Preserve & Merge User Config on Install — Non-Destructive config.json Upgrades",
+  "overview": "The npm postinstall installer (bin/install.js) recursively copies the package's skills tree into the install target via copyRecursive → fs.copyFileSync, overwriting unconditionally. This is correct for product files (skill markdown, shared/references, shared/templates, lib/workflows) but destroys the one user-owned file, skills/shared/config.json, on every upgrade — wiping the user's scaffolding mode, output paths, scaffold thresholds, and jira/trello integration keys. This change implements Option B (deep-merge): on upgrade, deep-merge the shipped default config into the user's existing config with user values winning, so new default keys flow in while user settings survive. Fresh installs copy the default verbatim (no behavior change). Malformed user config is backed up to config.json.bak rather than discarded. Orphan keys (present in user config, absent from defaults) are left in place. The bug is live: this repo's installed config has already diverged (paths.specs=docs/specs) and a re-run would silently revert it.",
+  "objectives": {
+    "primary": [
+      "Stop destroying user configuration on upgrade — a re-install must never silently overwrite a populated config.json with defaults.",
+      "Deliver new default keys on upgrade via deep-merge, with existing user values winning.",
+      "Preserve fresh-install behavior exactly: when no user config exists, copy the default verbatim with no observable change from today."
+    ],
+    "secondary": [
+      "Never silently discard a malformed user config — back it up to config.json.bak before writing a fresh default, and warn.",
+      "Emit distinct, accurate log lines for the merged vs. default-write vs. malformed-recovery paths so installer behavior is visible.",
+      "Extract the merge logic into pure, exported functions that are unit-testable without triggering install side-effects (guard the entrypoint with require.main === module)."
+    ]
+  },
+  "epics": [
+    {
+      "name": "Non-destructive config merge on install",
+      "slug": "config-merge-on-install",
+      "subdomain": "core",
+      "description": "Modify bin/install.js so skills/shared/config.json is excluded from the generic recursive copy and handled by a dedicated, testable installer. Add a pure deepMerge(defaults, overrides) (recurse plain objects, arrays/scalars as leaves with overrides winning, orphan keys preserved, inputs unmutated) and installConfig(defaultPath, destPath) with three branches: dest missing → write default verbatim ('default'); dest valid JSON → deep-merge and write ('merged'); dest invalid JSON → back up to config.json.bak then write default ('recovered'). All other install-tree files continue to overwrite unconditionally. Guard the top-level install execution behind require.main === module and export { deepMerge, installConfig } so the logic is importable. Add a zero-dependency node:test suite and a 'test' script covering deepMerge (new-key, user-wins, nested recursion, orphan survival, array-wins, no-mutation, idempotence) and installConfig (fresh, upgrade-preserves, new-key-on-upgrade, malformed-backup, 2-space+trailing-newline formatting, idempotence), plus a manual install smoke test confirming the rest of the skill tree still installs.",
+      "depends_on": [],
+      "shared_design_concerns": [
+        "config.json is the sole user-owned file; installConfig must be its only writer and copyRecursive must never touch it.",
+        "Zero new runtime dependencies — fs/path built-ins only, since the code runs in npm's postinstall sandbox.",
+        "Config handling failures must be caught and logged without aborting the rest of the skill installation (skills are the critical payload).",
+        "Idempotence: a second run over an already-merged config must produce a byte-identical file (no key duplication or reordering churn)."
+      ],
+      "slice": { "start_line": 1, "end_line": 113 }
+    }
+  ],
+  "dependencies": [
+    "bin/install.js — the postinstall entrypoint being modified.",
+    "skills/shared/config.json — the shipped default config (source of new keys).",
+    "Node.js built-ins fs and path (runtime); node:test and node:assert (tests).",
+    "package.json — add a 'test' script (node --test); postinstall script unchanged."
+  ],
+  "design_concerns": [
+    "Deep-merge leaves orphan keys (removed from future defaults but present in user file) in place rather than pruning — the safer default for user-owned data, but it must be a deliberate, documented decision so a later change does not 'fix' it back into data loss.",
+    "Arrays are treated as leaf values (user array wins wholesale, no element-wise merge); the current schema has no arrays, so this is forward-looking guard rather than current behavior.",
+    "Exporting from bin/install.js requires guarding execution behind require.main === module so importing for tests does not run the installer.",
+    "Separately from this change, the repo's already-diverged installed config (.claude/skills/shared/config.json with paths.specs=docs/specs) should be reviewed so the customization the new merge would faithfully preserve is intentional."
+  ],
+  "scaffold_mode": "single-pass",
+  "design_spike": false
+}
