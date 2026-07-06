@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { deepMerge, installConfig } = require('../bin/install.js');
+const { deepMerge, installConfig, installSkills, installGuidance } = require('../bin/install.js');
 
 const DEFAULT_CONFIG = {
   scaffolding: 'local',
@@ -188,4 +188,33 @@ test('installConfig is idempotent: a second run yields a byte-identical file', (
   const second = fs.readFileSync(destPath, 'utf8');
 
   assert.equal(second, first);
+});
+
+function installInto(skillsDir) {
+  const originalLog = console.log;
+  console.log = () => {};
+  try {
+    installSkills(skillsDir);
+    installGuidance(skillsDir);
+  } finally {
+    console.log = originalLog;
+  }
+}
+
+test('install ships the guidance skills under the non-registered _guidance/ directory', () => {
+  const skillsDir = freshTempDir();
+
+  installInto(skillsDir);
+
+  assert.ok(fs.existsSync(path.join(skillsDir, '_guidance', 'design-patterns', 'SKILL.md')));
+  assert.ok(fs.existsSync(path.join(skillsDir, '_guidance', 'domain-modeling', 'SKILL.md')));
+});
+
+test('install keeps design-patterns and domain-modeling out of the user-facing skill registry', () => {
+  const skillsDir = freshTempDir();
+
+  installInto(skillsDir);
+
+  assert.ok(!fs.existsSync(path.join(skillsDir, 'design-patterns')));
+  assert.ok(!fs.existsSync(path.join(skillsDir, 'domain-modeling')));
 });

@@ -33,8 +33,8 @@ corrections were made:
 | File | Change |
 |------|--------|
 | `skills/shared/references/ENGINEERING_BASELINE.md` | **New.** Clean Code + TDD + Arbitration Rule. The universal baseline layer. |
-| `skills/design-patterns/SKILL.md` | **New.** Counterweight-first, faithful 23-pattern GoF catalog. |
-| `skills/domain-modeling/SKILL.md` | **New.** Decision-oriented tactical DDD. |
+| `lib/guidance/design-patterns/SKILL.md` | **New.** Counterweight-first, faithful 23-pattern GoF catalog. (Originally authored under `skills/`; relocated to `lib/guidance/` — installs to `_guidance/` — per the 2026-07-06 correction below.) |
+| `lib/guidance/domain-modeling/SKILL.md` | **New.** Decision-oriented tactical DDD. (Originally authored under `skills/`; relocated to `lib/guidance/` — installs to `_guidance/` — per the 2026-07-06 correction below.) |
 | `skills/project-spec/SKILL.md` | Reads baseline; adds strategic-DDD pass (with `core`/`supporting`/`generic` subdomain classification) + GoF candidate pattern-naming; emits `subdomain` per epic. |
 | `skills/project-scaffold/SKILL.md` | Persists the epic `subdomain` from the spec into epic metadata (`_epic.md` frontmatter in local mode; `subdomain:<value>` label in remote modes), and into the Pass-1 epic skeleton. This is the carrier that makes the gate work in all orchestration modes. |
 | `skills/project-orchestrate/SKILL.md` | Reads baseline + mandates it for subagents; reads each epic's `subdomain` from epic metadata; passes `baselinePath` always and `situationalGuidance` (design-patterns + domain-modeling) for `core` epics only. |
@@ -78,6 +78,40 @@ The four works are credited as intellectual sources in `NOTICE` (which propagate
 under Apache-2.0) and in the README's **Acknowledgments** section. Attribution is
 provided for integrity and respect, independent of the (now sidestepped) fair-use
 question.
+
+## Correction: guidance skills shipped in source but never installed (2026-07-06)
+
+The "as built — 2026-06-18" record above claimed the `design-patterns` and
+`domain-modeling` guidance was **built and validated**. The authoring was real,
+but the guidance never reached a single consumer: the two `SKILL.md` files lived
+under `skills/`, yet `bin/install.js` copies skills from a **hardcoded list**
+(the `skills` array) that never included them. In every published version from
+1.7.0 through 2.1.2, `postinstall` therefore skipped both files —
+`.claude/skills/design-patterns/` and `.claude/skills/domain-modeling/` were
+never created in any consumer install.
+
+Because the files were absent, `/project-orchestrate`'s resolution step was
+under-specified — it told the orchestrator to "resolve the absolute `SKILL.md`
+paths" without saying **where**. A thorough Claude instance would hunt them down
+in `node_modules`; a lazy one would fail to find them and silently fall back to
+the baseline. The result was **flaky situational-guidance injection** for
+`core`-subdomain epics: the same run could inject the guidance or not, depending
+on how hard the orchestrator looked.
+
+**The fix (Option C — mirror `_workflows/`).** The two files move to
+`lib/guidance/` in source, and a dedicated installer step
+(`installGuidance()` in `bin/install.js`) copies them to `<skillsDir>/_guidance/`
+— exactly as `installWorkflows()` ships `lib/workflows/` to `_workflows/`. The
+underscore prefix keeps Claude Code from registering them as user-facing skills,
+which they were never meant to be: they are **internal guidance the orchestrator
+injects**, not invocable slash commands. `/project-orchestrate` now resolves them
+by a fixed, install-layout-agnostic path —
+`<skills-root>/_guidance/design-patterns/SKILL.md` and
+`<skills-root>/_guidance/domain-modeling/SKILL.md`, using the same `<skills-root>`
+derivation already documented for `_workflows/` — so there is exactly one place
+to look and no `node_modules` hunting. Their source location is now
+`lib/guidance/` (updated in the table above); their install location is
+`_guidance/`. See ADR-0005.
 
 ---
 

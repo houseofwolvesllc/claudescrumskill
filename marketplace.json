@@ -34,14 +34,6 @@
     {
       "name": "project-cleanup",
       "path": "skills/project-cleanup"
-    },
-    {
-      "name": "design-patterns",
-      "path": "skills/design-patterns"
-    },
-    {
-      "name": "domain-modeling",
-      "path": "skills/domain-modeling"
     }
   ]
 }
