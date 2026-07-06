@@ -6,6 +6,7 @@ const path = require('path');
 const HOME = process.env.HOME || process.env.USERPROFILE;
 const SOURCE_DIR = path.join(__dirname, '..', 'skills');
 const WORKFLOWS_SOURCE_DIR = path.join(__dirname, '..', 'lib', 'workflows');
+const GUIDANCE_SOURCE_DIR = path.join(__dirname, '..', 'lib', 'guidance');
 const IS_GLOBAL = process.env.npm_config_global === 'true';
 const CONFIG_FILENAME = 'config.json';
 
@@ -30,6 +31,7 @@ function main() {
   installSharedReferences(skillsDir);
   const installed = installSkills(skillsDir);
   installWorkflows(skillsDir);
+  installGuidance(skillsDir);
 
   if (!IS_GLOBAL) {
     ensureGitignoreEntry(skillsDir);
@@ -119,6 +121,16 @@ function installWorkflows(skillsDir) {
   const workflowsDest = path.join(skillsDir, '_workflows');
   copyRecursive(WORKFLOWS_SOURCE_DIR, workflowsDest);
   console.log('  ⚙️  _workflows (lib/workflows + schemas)');
+}
+
+// Copy lib/guidance/ → <skillsDir>/_guidance/ (v2.1.3+).
+// Underscore prefix keeps these internal — orchestrator-injected situational
+// guidance for core epics, never registered as user-facing skills.
+function installGuidance(skillsDir) {
+  if (!fs.existsSync(GUIDANCE_SOURCE_DIR)) return;
+  const guidanceDest = path.join(skillsDir, '_guidance');
+  copyRecursive(GUIDANCE_SOURCE_DIR, guidanceDest);
+  console.log('  🧭 _guidance (design-patterns + domain-modeling)');
 }
 
 function ensureGitignoreEntry(skillsDir) {
@@ -212,4 +224,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { deepMerge, installConfig };
+module.exports = { deepMerge, installConfig, installSkills, installGuidance };

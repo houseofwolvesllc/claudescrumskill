@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.3] — 2026-07-06
+
+### Fixed
+- **Guidance skills were never installed** (`bin/install.js`): the `design-patterns` and `domain-modeling` situational-guidance skills shipped under `skills/` but were absent from the installer's hardcoded copy list, so `postinstall` never created `.claude/skills/design-patterns/` or `.claude/skills/domain-modeling/` in any consumer install (1.7.0–2.1.2). `/project-orchestrate`'s vague "resolve the absolute `SKILL.md` paths" instruction then caused flaky injection for `core`-subdomain epics — thorough runs hunted the files down in `node_modules`, lazy runs silently fell back to the baseline. The two skills now live in `lib/guidance/` and install to the non-registered `_guidance/` directory via a dedicated `installGuidance()` step, mirroring how `lib/workflows/` ships to `_workflows/`. `/project-orchestrate` resolves them by a fixed, install-layout-agnostic path (`<skills-root>/_guidance/…`), so injection is deterministic and they stay out of the user-facing skill registry. See ADR-0005.
+
 ## [2.1.2] — 2026-06-24
 
 ### Fixed
