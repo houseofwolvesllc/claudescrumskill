@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] — 2026-07-07
+
+### Fixed
+- **Args normalization missing across every workflow** (`lib/workflows/*.js`): all four workflow entry points (`review_panel.js`, `adversarial_verify.js`, `elaborate_epics.js`, `sprint_pipeline.js`) destructured the injected `args` global directly, so a host that delivers `args` as a **JSON string** silently yielded `undefined` for every field and the workflow no-op'd or crashed. A single shared `normalizeArgs(raw, workflowName)` now handles the string-or-object contract for all four: a non-null non-array object passes through by the same reference; a string is `JSON.parse`d (double-encoded strings re-parsed); and malformed JSON, arrays, primitives, `null`, and post-parse non-objects **throw with the workflow name** rather than defaulting to `{}`. Because the Workflow runtime has no `import()`/`require`, the one canonical `_shared/normalize_args.mjs` is inlined into each script and guarded against drift by a test. See ADR-0006.
+
+### Added
+- **Layout-aware isolation in `sprint_pipeline.js`** (`lib/workflows/`): the pipeline now detects whether `node_modules` is tracked (`git ls-files node_modules`) and chooses its execution model per batch. Tracked/vendored deps → `worktree` isolation (unchanged). Untracked deps (the common case) or a non-git/command-error → **serial-in-tree**: stories run fully sequentially in genuine dependency-topological order (Kahn's algorithm), one chain in flight, with a dependency-preserving between-story reset (`git reset --hard` → `git checkout -f <releaseBranch>` → `git clean -fdx -e node_modules …`) that **preserves every `node_modules` (root + nested)** so there is no per-story reinstall. This fixes the prior assumption that a fresh `git worktree add` (tracked files only) could build against gitignored dependencies. An optional `isolationStrategy: 'auto' | 'worktree' | 'serial-in-tree'` arg (default `'auto'`) lets an operator force a strategy; forcing `'worktree'` on untracked deps warns and proceeds. Existing callers are unaffected. See ADR-0006.
+- **Automated unit tests for the extracted logic** (`lib/workflows/_shared/*.test.mjs`, `npm test`): `node --test` coverage for the normalizer (E1), layout detector against real git in temp dirs (E2), topological ordering incl. adverse-order and cycle throw (E3), the dependency-preserving reset (E4), and the sequential driver (E5) — plus an inline-drift guard. `docs/M1-manual-e2e-gate.md` documents the manual end-to-end gate.
+
+### Changed
+- **Installer keeps colocated tests out of the payload** (`bin/install.js`): `copyRecursive`'s `skipPath` parameter is generalized into a skip predicate that filters `*.test.*` from the workflow copy, and a post-install smoke check asserts the shared `_shared/*.mjs` modules are present/importable and that no test files shipped.
+- **`project-orchestrate/SKILL.md`**: added the optional `isolationStrategy` arg to the `sprint_pipeline` invocation block and reconciled the stale worktrees / `min(16, cpu_cores-2)` concurrency / "serialized behind a lock" paragraph into a two-execution-model description (worktree vs serial-in-tree).
+
 ## [2.1.3] — 2026-07-06
 
 ### Fixed
