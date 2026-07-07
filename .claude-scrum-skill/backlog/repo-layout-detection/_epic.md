@@ -1,7 +1,7 @@
 ---
 title: Repo-layout detection
 slug: repo-layout-detection
-status: open
+status: closed
 created: 2026-07-07T00:00:00Z
 ---
 
@@ -13,6 +13,6 @@ SKILL.md reconciliation. Depends on args-normalization-extraction. See CONTEXT.m
 
 ## Stories
 
-- [ ] 001 — Create `_shared/detect_repo_layout.mjs` (F8/F9/F9a) + colocated `.test.mjs` (E2).
-- [ ] 002 — Resolve strategy once after empty-batch guard; optional override + forced-worktree warning; log evidence (F5/F9b/F10).
-- [ ] 003 — SKILL.md reconciliation: args block + stale worktrees/concurrency/lock paragraph (F9c).
+- [x] 001 — Create `_shared/detect_repo_layout.mjs` (F8/F9/F9a) + colocated `.test.mjs` (E2, 7 cases against real temp git repos).
+- [x] 002 — Strategy resolution wiring (F5/F9b/F10). Landed with serial-in-tree-execution because it edits the same `runStory`/story-loop region; splitting would ship a racy intermediate. Detection classifier is inlined; git delegated to an agent.
+- [x] 003 — SKILL.md reconciliation: added optional `isolationStrategy` to the args block and rewrote the stale worktrees/`min(16,cpu_cores-2)`/lock paragraph into the two-execution-model description (F9c).
