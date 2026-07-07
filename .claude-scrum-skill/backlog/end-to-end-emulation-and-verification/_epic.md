@@ -1,7 +1,7 @@
 ---
 title: End-to-end emulation & verification
 slug: end-to-end-emulation-and-verification
-status: open
+status: closed
 created: 2026-07-07T00:00:00Z
 ---
 
@@ -13,7 +13,13 @@ tests. Depends on the three implementation epics.
 
 ## Stories
 
-- [ ] 001 — Integration gate: confirm E1–E5 pass under `node --test`.
-- [ ] 002 — Author `docs/M1-manual-e2e-gate.md` with exact reproducible steps
+- [x] 001 — Integration gate: `npm test` (node --test) green, 65 checks covering
+  E1–E5 + F11 install + the inline drift guard. Two runtime smokes executed: the
+  inlined `normalizeArgs` and the fully-inlined `sprint_pipeline.js` (empty-batch)
+  both load and run in the real wrapped-eval Workflow runtime.
+- [x] 002 — `docs/M1-manual-e2e-gate.md` authored with exact reproducible steps
   (≥2-story serial batch: independent pair, adverse dependency pair, dirty-tree
-  carryover, forced override both directions, simulated detector throw).
+  carryover, forced override both directions, simulated detector throw). Left as
+  the documented MANUAL gate by design: a full agent-driven run targets the
+  ambient session repo (agents inherit session cwd), so it must be run in a
+  dedicated scratch-repo session — reconstructing the runtime in CI is a non-goal.
