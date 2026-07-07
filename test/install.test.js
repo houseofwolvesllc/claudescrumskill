@@ -4,7 +4,17 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
-const { deepMerge, installConfig, installSkills, installGuidance } = require('../bin/install.js');
+const {
+  deepMerge,
+  installConfig,
+  installSkills,
+  installGuidance,
+  installWorkflows,
+  copyRecursive,
+  isTestFile,
+  findFiles,
+  verifyWorkflowInstall,
+} = require('../bin/install.js');
 
 const DEFAULT_CONFIG = {
   scaffolding: 'local',
@@ -217,4 +227,65 @@ test('install keeps design-patterns and domain-modeling out of the user-facing s
 
   assert.ok(!fs.existsSync(path.join(skillsDir, 'design-patterns')));
   assert.ok(!fs.existsSync(path.join(skillsDir, 'domain-modeling')));
+});
+
+test('isTestFile matches *.test.* files and spares production modules', () => {
+  assert.ok(isTestFile('/x/normalize_args.test.mjs'));
+  assert.ok(isTestFile('/x/install.test.js'));
+  assert.ok(!isTestFile('/x/normalize_args.mjs'));
+  assert.ok(!isTestFile('/x/sprint_pipeline.js'));
+});
+
+test('copyRecursive skip predicate prunes matched files but copies the rest', () => {
+  const src = freshTempDir();
+  const dest = freshTempDir();
+  fs.writeFileSync(path.join(src, 'keep.mjs'), 'export const a = 1\n');
+  fs.writeFileSync(path.join(src, 'drop.test.mjs'), 'test skeleton\n');
+
+  copyRecursive(src, dest, isTestFile);
+
+  assert.ok(fs.existsSync(path.join(dest, 'keep.mjs')));
+  assert.ok(!fs.existsSync(path.join(dest, 'drop.test.mjs')));
+});
+
+test('installWorkflows ships _shared/*.mjs but no colocated *.test.* files', () => {
+  const skillsDir = freshTempDir();
+  const originalLog = console.log;
+  console.log = () => {};
+  try {
+    installWorkflows(skillsDir);
+  } finally {
+    console.log = originalLog;
+  }
+
+  const sharedDir = path.join(skillsDir, '_workflows', '_shared');
+  assert.ok(fs.existsSync(path.join(sharedDir, 'normalize_args.mjs')));
+  assert.equal(findFiles(path.join(skillsDir, '_workflows'), isTestFile).length, 0);
+});
+
+test('verifyWorkflowInstall passes on a real install: modules importable, no tests shipped', async () => {
+  const skillsDir = freshTempDir();
+  const originalLog = console.log;
+  console.log = () => {};
+  try {
+    installWorkflows(skillsDir);
+    await verifyWorkflowInstall(skillsDir);
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+test('verifyWorkflowInstall throws when a test file leaks into the payload', async () => {
+  const skillsDir = freshTempDir();
+  const originalLog = console.log;
+  console.log = () => {};
+  try {
+    installWorkflows(skillsDir);
+  } finally {
+    console.log = originalLog;
+  }
+  // Simulate a leaked colocated test in the installed payload.
+  fs.writeFileSync(path.join(skillsDir, '_workflows', '_shared', 'leaked.test.mjs'), '// leak\n');
+
+  await assert.rejects(() => verifyWorkflowInstall(skillsDir), /shipped test files/);
 });

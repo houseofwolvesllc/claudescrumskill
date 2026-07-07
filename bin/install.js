@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { pathToFileURL } = require('url');
 
 const HOME = process.env.HOME || process.env.USERPROFILE;
 const SOURCE_DIR = path.join(__dirname, '..', 'skills');
@@ -21,7 +22,7 @@ const skills = [
   'project-cleanup'
 ];
 
-function main() {
+async function main() {
   const skillsDir = resolveSkillsDir();
   const location = IS_GLOBAL ? 'global (~/.claude/skills/)' : `project (${skillsDir})`;
   console.log(`\n📋 Installing claude-scrum-skill (${location})...\n`);
@@ -32,6 +33,7 @@ function main() {
   const installed = installSkills(skillsDir);
   installWorkflows(skillsDir);
   installGuidance(skillsDir);
+  await verifyWorkflowInstall(skillsDir);
 
   if (!IS_GLOBAL) {
     ensureGitignoreEntry(skillsDir);
@@ -65,8 +67,8 @@ function installSharedReferences(skillsDir) {
   if (!fs.existsSync(sharedSrc)) return;
 
   // config.json is user-owned: copy everything else, then merge it explicitly.
-  const skipConfig = path.join(sharedSrc, CONFIG_FILENAME);
-  copyRecursive(sharedSrc, sharedDest, skipConfig);
+  const skipConfig = path.resolve(sharedSrc, CONFIG_FILENAME);
+  copyRecursive(sharedSrc, sharedDest, srcPath => path.resolve(srcPath) === skipConfig);
   console.log('  📁 shared references');
 
   installSharedConfig(sharedSrc, sharedDest);
@@ -119,8 +121,16 @@ function installSkills(skillsDir) {
 function installWorkflows(skillsDir) {
   if (!fs.existsSync(WORKFLOWS_SOURCE_DIR)) return;
   const workflowsDest = path.join(skillsDir, '_workflows');
-  copyRecursive(WORKFLOWS_SOURCE_DIR, workflowsDest);
+  // Shared modules colocate their *.test.mjs (house style). The canonical
+  // modules ship (they are the DRY source inlined into the scripts and the
+  // smoke check imports them), but the colocated tests must not ship.
+  copyRecursive(WORKFLOWS_SOURCE_DIR, workflowsDest, isTestFile);
   console.log('  ⚙️  _workflows (lib/workflows + schemas)');
+}
+
+// Skip predicate: colocated test files (*.test.*) are never part of a payload.
+function isTestFile(srcPath) {
+  return /\.test\./.test(path.basename(srcPath));
 }
 
 // Copy lib/guidance/ → <skillsDir>/_guidance/ (v2.1.3+).
@@ -146,18 +156,69 @@ function ensureGitignoreEntry(skillsDir) {
   console.log(`\n  📝 Added ${entry} to .gitignore`);
 }
 
-function copyRecursive(src, dest, skipPath) {
+// Recursively copy src → dest. `shouldSkip(absoluteSrcPath) => boolean` is an
+// optional predicate consulted for every file and directory; a skipped
+// directory prunes its whole subtree. (Generalized from the earlier single
+// exact-path `skipPath`, so callers can skip by name pattern — e.g. *.test.*.)
+function copyRecursive(src, dest, shouldSkip) {
   if (!fs.existsSync(src)) return;
-  if (skipPath && path.resolve(src) === path.resolve(skipPath)) return;
+  if (shouldSkip && shouldSkip(src)) return;
 
   if (fs.statSync(src).isDirectory()) {
     fs.mkdirSync(dest, { recursive: true });
     for (const item of fs.readdirSync(src)) {
-      copyRecursive(path.join(src, item), path.join(dest, item), skipPath);
+      copyRecursive(path.join(src, item), path.join(dest, item), shouldSkip);
     }
   } else {
     fs.copyFileSync(src, dest);
   }
+}
+
+// Post-install smoke check for the workflow payload (F11): the shared modules
+// must be present and importable, and no colocated test file may have shipped.
+// Throws on either failure so a broken payload surfaces at install time rather
+// than at first workflow run.
+async function verifyWorkflowInstall(skillsDir) {
+  const workflowsDest = path.join(skillsDir, '_workflows');
+  if (!fs.existsSync(workflowsDest)) return;
+
+  const shippedTests = findFiles(workflowsDest, isTestFile);
+  if (shippedTests.length > 0) {
+    throw new Error(
+      `workflow install shipped test files (they must be skipped): ${shippedTests.join(', ')}`
+    );
+  }
+
+  const sharedDir = path.join(workflowsDest, '_shared');
+  if (!fs.existsSync(sharedDir)) {
+    throw new Error('_workflows/_shared is missing after install');
+  }
+  const modules = fs
+    .readdirSync(sharedDir)
+    .filter(name => name.endsWith('.mjs') && !isTestFile(name));
+  if (modules.length === 0) {
+    throw new Error('_workflows/_shared shipped no .mjs modules');
+  }
+  for (const name of modules) {
+    await import(pathToFileURL(path.join(sharedDir, name)).href);
+  }
+  console.log(
+    `  🔎 workflow smoke check: ${modules.length} shared module(s) present & importable, no tests shipped`
+  );
+}
+
+// Absolute paths of every file under root for which match(absPath) is true.
+function findFiles(root, match) {
+  const out = [];
+  const walk = current => {
+    for (const item of fs.readdirSync(current)) {
+      const full = path.join(current, item);
+      if (fs.statSync(full).isDirectory()) walk(full);
+      else if (match(full)) out.push(full);
+    }
+  };
+  walk(root);
+  return out;
 }
 
 function isPlainObject(value) {
@@ -221,7 +282,20 @@ function parseConfig(raw) {
 }
 
 if (require.main === module) {
-  main();
+  main().catch(error => {
+    console.error(`\n❌ install failed: ${error.message}\n`);
+    process.exit(1);
+  });
 }
 
-module.exports = { deepMerge, installConfig, installSkills, installGuidance };
+module.exports = {
+  deepMerge,
+  installConfig,
+  installSkills,
+  installGuidance,
+  installWorkflows,
+  copyRecursive,
+  isTestFile,
+  findFiles,
+  verifyWorkflowInstall,
+};
