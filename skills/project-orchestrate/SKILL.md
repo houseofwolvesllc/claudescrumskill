@@ -455,8 +455,10 @@ in-batch blockers, not array order), exactly one story chain in flight, each
 completing its whole implement→review→verify→merge chain on the shared tree
 before the next begins. Between stories the shared tree is reset
 (`git reset --hard` → `git checkout -f <releaseBranch>` →
-`git clean -fdx -e node_modules …`) so tracked changes and stray build
-artifacts are cleared while every `node_modules` is preserved. This is ~N×
+`git clean -fd -e node_modules …`) so tracked changes are reverted and
+untracked non-ignored cruft is cleared while everything gitignored is preserved
+— `node_modules`, the `.claude` install dir, the `.claude-scrum-skill` state,
+and any `.env*` secrets (the reset deliberately omits `-x`). This is ~N×
 wall-clock versus worktree mode's parallelism, with no per-story reinstall — an
 accepted correctness-over-speed tradeoff on the common repo shape.
 

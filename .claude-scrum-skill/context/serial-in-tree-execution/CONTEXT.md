@@ -17,10 +17,14 @@ delegate git execution to agents.
   `resetWorktreeCommands(releaseBranch)` (pure, ordered command list) and
   `resetWorktree(repoRoot, releaseBranch, execGit)` (execGit-injected, tests
   only). Order is **exactly**: `git reset --hard` → `git checkout -f <rb>` →
-  `git clean -fdx -e node_modules -e '**/node_modules'`. E4 dirties a TRACKED
-  file whose content differs between the story branch and `releaseBranch` (a
-  plain checkout would genuinely conflict) then asserts clean tree +
-  `node_modules` (root + nested) survives + `dist/` cleared.
+  `git clean -fd -e node_modules -e '**/node_modules'`. The `-x` flag is
+  deliberately omitted: without it, git clean spares **every** gitignored path,
+  so `node_modules`, the `.claude` install dir, `.claude-scrum-skill` state, and
+  `.env*` secrets all survive (`-x` would delete every ignored path). E4 dirties
+  a TRACKED file whose content differs between the story branch and
+  `releaseBranch` (a plain checkout would genuinely conflict) then asserts clean
+  tree + every gitignored path (`node_modules` root + nested, `dist/`, `.claude`,
+  `.claude-scrum-skill`, `.env*`) survives + untracked non-ignored cruft cleared.
 - `lib/workflows/_shared/run_sequential.mjs` + test (E5) — exports
   `runSequential(orderedStories, { runChain, resetBetween })`: runs exactly ONE
   chain in flight; awaits each story's full chain before the next; runs

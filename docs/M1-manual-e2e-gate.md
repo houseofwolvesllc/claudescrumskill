@@ -87,11 +87,14 @@ repo's final `git status`/`git log` for each.
    (reset preserved it); no `dist/` or stray files left between stories.
 
 2. **Dirty-tree carryover (F7b).** Before re-running, leave a conflicting
-   uncommitted change and a `dist/` artifact in the tree from an aborted attempt.
+   uncommitted change and an untracked non-ignored scratch file (e.g. `stray.tmp`)
+   in the tree from an aborted attempt.
    **Expect:** the between-story reset (`git reset --hard` → `git checkout -f
-   release/m1` → `git clean -fdx -e node_modules …`) recovers a clean tree for the
-   next story, `node_modules` survives, `dist/` is gone. No story aborts on a
-   dirty checkout.
+   release/m1` → `git clean -fd -e node_modules …`) recovers a clean tree for the
+   next story, the scratch file is gone, and every gitignored path survives —
+   `node_modules`, the `.claude` install dir, `.claude-scrum-skill` state, and any
+   `.env*` secrets (the reset omits `-x`, so ignored files are never touched). No
+   story aborts on a dirty checkout.
 
 3. **Forced `isolationStrategy: "serial-in-tree"`.** **Expect:** `log`
    `... (source=override, ...)`; behaves as scenario 1.

@@ -105,3 +105,29 @@ lock is reintroduced; zero concurrency dissolves R1/R2.
   against the real Workflow runtime is the documented manual gate (M1).
 - **The runtime constraints are now recorded** (this ADR) so future workflow work
   does not re-derive them or assume `import`/`require`/`child_process` exist.
+
+## Amendment (2026-07-19): between-story reset drops `-x`
+
+The between-story reset as originally shipped (§3) ran
+`git clean -fdx -e node_modules -e '**/node_modules'`. The `-e node_modules`
+guard reasoned about exactly one gitignored path and stopped there — but `-x`
+makes the blast radius **every** gitignored path. On a real repo that is not
+just build output: it is the skill's own project-local `.claude` install dir, the
+orchestration's `.claude-scrum-skill` state (backlog, orchestration state,
+reports), and any `.env*` secrets. Because the reset only fires between stories
+(`index > 0`), the hazard stayed latent until the first multi-story batch, then
+silently and unrecoverably deleted all of the above mid-run.
+
+The reset now runs **`git clean -fd`** (no `-x`) — `git reset --hard` →
+`git checkout -f <releaseBranch>` → `git clean -fd -e node_modules -e '**/node_modules'`.
+Dropping `-x` removes the hazard as a **class** rather than enumerating paths to
+spare: git clean without `-x` never touches a gitignored path, so `node_modules`,
+`.claude`, `.claude-scrum-skill`, and `.env*` all survive by construction. The
+`node_modules` excludes are retained to guard the one remaining edge — a repo that
+leaves `node_modules` untracked **and** un-ignored, where a bare `-fd` would
+delete it. The reset's essential job (return tracked files to a clean
+release-branch state) is unchanged; the only behavioral difference is that
+gitignored build artifacts (`dist/`, coverage when ignored) now survive the
+reset, which is strictly safer and correct for a tool operating inside a user's
+repo. Canonical source and tests: `lib/workflows/_shared/reset_worktree.mjs`
+(E4). This supersedes the `git clean -fdx …` command in §3 above.
