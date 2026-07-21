@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] — 2026-07-20
+
+### Fixed
+- **Serial-in-tree between-story reset destroyed gitignored working-tree files** (`lib/workflows/_shared/reset_worktree.mjs`, inlined into `sprint_pipeline.js`): the reset ran `git clean -fdx -e node_modules …`, and the `-x` flag deletes **every** gitignored path, not just build cruft. On a multi-story batch (the reset only fires between stories, so single-story batches never triggered it) this silently and unrecoverably wiped the skill's own project-local `.claude` install dir, the orchestration's `.claude-scrum-skill` state (backlog, reports, orchestration state), and any `.env*` secrets — mid-run, with no confirmation. The reset now runs `git clean -fd` (no `-x`): without `-x`, git clean never touches any gitignored path, so `node_modules`, `.claude`, `.claude-scrum-skill`, and secrets all survive by construction. The `node_modules` excludes are retained to guard the one remaining edge (a repo that leaves `node_modules` untracked **and** un-ignored). Dropping `-x` removes the hazard as a class rather than enumerating known paths to spare. See ADR-0006 (Amendment 2026-07-19).
+
 ## [2.2.0] — 2026-07-07
 
 ### Fixed
