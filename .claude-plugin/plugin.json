@@ -1,7 +1,7 @@
 {
   "name": "claude-scrum-skill",
   "description": "Complete scrum pipeline — PRD to production release with Claude as scrum master. Includes project scaffolding, sprint planning, status tracking, sprint releases, and full-project emulation testing.",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "author": {
     "name": "House of Wolves LLC"
   },
