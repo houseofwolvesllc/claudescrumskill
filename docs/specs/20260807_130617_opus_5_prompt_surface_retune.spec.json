@@ -1,0 +1,244 @@
+{
+  "title": "Opus 5 Prompt Surface & Agent Fan-Out Retune",
+  "overview": "The skill suite's prompt surface was authored across the Claude Opus 4.6-4.8 era. Moving the session model to Opus 5 produced a ~4x increase in wall-clock time and token usage with no code change; per-token pricing is identical, so the increase is entirely token volume. Three Opus 5 behavior changes interact badly with this suite: thinking is on by default, the model self-verifies unprompted (making explicit verification scaffolding redundant work), and it delegates to subagents readily. A long-standing gap amplifies all three: no agent() call in lib/workflows/ sets model or effort, so ~100 agent invocations per orchestrate run inherit the session tier, including stages whose entire job is running git commands. This spec removes redundant work and assigns explicit tiers rather than capping capability.",
+  "objectives": {
+    "primary": [
+      "Eliminate duplicated verification work that Opus 5 now performs internally",
+      "Assign an explicit (model, effort) tier to every agent stage so mechanical work stops running at the session tier",
+      "Reduce the read-cost of shared prompt context injected into every agent"
+    ],
+    "secondary": [
+      "Repair bin/install.js so it can run from a source checkout",
+      "Remove residual 4.8-era scaffolding from the remaining skill files without disturbing fragile sequencing"
+    ]
+  },
+  "epics": [
+    {
+      "name": "Verification Deduplication",
+      "slug": "verification-deduplication",
+      "description": "Remove verification work that Opus 5 now performs internally. Changed code is currently reviewed by a per-story review agent and again by a 4-lens review panel at cleanup; emulation findings are argued by three agents where two suffice; and the review prompt carries a redundant self-check sentence. Retain the per-story review (it runs while story context is live) and cut the duplicates. The invariant: review coverage must not be lost while removing a reviewer.",
+      "subdomain": "core",
+      "depends_on": [],
+      "shared_design_concerns": [
+        "Do not add verification steps or double-check/re-verify phrasing anywhere",
+        "Security-lens coverage must survive removal of review_panel",
+        "Edits to adversarial_verify.js must not disturb the inlined normalize_args block, which is DRY-checked against _shared/normalize_args.mjs"
+      ],
+      "stories": [
+        {
+          "title": "Remove review_panel from the project-cleanup flow",
+          "slug": "remove-review-panel-from-cleanup",
+          "acceptance_criteria": [
+            "project-cleanup/SKILL.md Phase 5.5 no longer invokes review_panel.js, or invokes it scoped strictly to files the per-story review flagged",
+            "Security-lens coverage is preserved: either the security lens prompt is folded into buildReviewPrompt, or a single scoped security lens is retained with a written rationale",
+            "No orphaned references to review_panel.js remain in any SKILL.md",
+            "If review_panel.js becomes unreferenced, the file is deleted rather than left in place"
+          ],
+          "technical_context": "review_panel.js runs 4 lens agents (correctness, security, style, tests) over the same diff the per-story review agent at sprint_pipeline.js:621 already covered. Invoked from project-cleanup/SKILL.md:308.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl"
+        },
+        {
+          "title": "Reduce adversarial_verify from three agents to two",
+          "slug": "reduce-adversarial-verify-to-two-agents",
+          "acceptance_criteria": [
+            "The claimant agent is removed from adversarial_verify.js",
+            "The judge receives the finding directly as the affirmative position, in place of the claimant's summary and evidence",
+            "The skeptic stage is unchanged in intent",
+            "The returned shape is updated coherently and project-emulate/SKILL.md's documented return shape matches",
+            "Per-finding agent count is 2, verified by inspection"
+          ],
+          "technical_context": "adversarial_verify.js currently runs claimant + skeptic in parallel then a judge, per finding. The finding is itself the claim, so the claimant restates existing input. On a 20-finding run this drops 60 agents to 40.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl"
+        },
+        {
+          "title": "Remove the redundant self-check sentence from buildReviewPrompt",
+          "slug": "remove-redundant-review-self-check",
+          "acceptance_criteria": [
+            "The sentence beginning 'Confirm the baseline was honored' is removed from buildReviewPrompt in sprint_pipeline.js",
+            "The baselinePath reference in the preceding clause is retained so the reviewer still knows where the baseline lives",
+            "No replacement verification phrasing is introduced"
+          ],
+          "technical_context": "sprint_pipeline.js:480. The same prompt already asks for correctness and convention-compliance review; the extra sentence is a second verify instruction inside one prompt.",
+          "points": 1,
+          "executor": "claude",
+          "priority": "P2-medium",
+          "persona": "impl"
+        }
+      ]
+    },
+    {
+      "name": "Agent Tiering",
+      "slug": "agent-tiering",
+      "description": "Assign an explicit (model, effort) tier to every agent() call in lib/workflows/. None currently set either, so every stage inherits the session tier — including detect-layout, which runs git ls-files, and reset, which runs a fixed git sequence. Mechanical stages move to the cheapest tier; reasoning stages keep the session model. Tier resolution must degrade sanely when the session model is already inexpensive.",
+      "subdomain": "core",
+      "depends_on": ["verification-deduplication"],
+      "shared_design_concerns": [
+        "Do not pin model IDs in SKILL.md prose; tiering belongs in the workflow scripts",
+        "Tiering down from an already-inexpensive session model must be suppressed",
+        "Effort is a cost lever, not a verbosity lever — do not lower effort to shorten output"
+      ],
+      "stories": [
+        {
+          "title": "Add a stage-to-tier resolver with session-model degradation",
+          "slug": "add-stage-tier-resolver",
+          "acceptance_criteria": [
+            "A resolver maps each agent stage to a (model, effort) pair",
+            "When the session model is already at or below the target tier, the resolver returns the session model rather than tiering down",
+            "The resolver is unit-tested for every stage and for the degradation path",
+            "The resolver is a plain function over a constant map; no class hierarchy or injected abstraction is introduced"
+          ],
+          "technical_context": "Candidate Strategy pattern per the spec's pattern pass, non-binding: may collapse to a function if the by-model-family variation does not materialize. The Workflow runtime cannot import across files, so shared logic must follow the existing inline_sync convention used for normalize_args.",
+          "points": 5,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl"
+        },
+        {
+          "title": "Apply tiers to every agent call in the workflow scripts",
+          "slug": "apply-tiers-to-workflow-agents",
+          "acceptance_criteria": [
+            "detect-layout, reset, and pr run at the cheapest tier with low effort",
+            "implement runs at the session model and session effort",
+            "verify runs at the session model with low effort",
+            "review, skeptic, and judge run one tier down at medium effort",
+            "elaborate runs at the session model with medium effort",
+            "Every agent() call in lib/workflows/*.js supplies an explicit tier"
+          ],
+          "technical_context": "Sites: sprint_pipeline.js:388 (detect-layout), :613 (implement), :621 (review), :629 (verify), :639 (pr), :684 (reset); adversarial_verify.js (skeptic, judge); elaborate_epics.js:163 (elaborate).",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl",
+          "blocked_by": ["add-stage-tier-resolver"]
+        },
+        {
+          "title": "Add a structural test forbidding untiered agent calls",
+          "slug": "forbid-untiered-agent-calls",
+          "acceptance_criteria": [
+            "A test scans lib/workflows/*.js and fails if any agent() call omits an explicit tier",
+            "The test names the offending file and stage in its failure message",
+            "The test passes against the post-change tree"
+          ],
+          "technical_context": "Prevents regression: the original defect was silent inheritance, which no existing test would catch.",
+          "points": 2,
+          "executor": "claude",
+          "priority": "P2-medium",
+          "persona": "impl",
+          "blocked_by": ["apply-tiers-to-workflow-agents"]
+        }
+      ]
+    },
+    {
+      "name": "Prompt Surface Detox",
+      "slug": "prompt-surface-detox",
+      "description": "Remove 4.8-era scaffolding from the text every agent reads. ENGINEERING_BASELINE.md is ~1,077 words of largely Clean Code and TDD canon read by every implementation, review, and hardening agent; a stray ultrathink token forces maximum thinking on every spec run; and the remaining SKILL.md files carry step choreography of mixed value. The audit's keep-list binds here: fragile-operation sequencing stays.",
+      "subdomain": "core",
+      "depends_on": ["verification-deduplication"],
+      "shared_design_concerns": [
+        "Arbitration Rule, the four Emergence priorities, and the precedence order are preserved verbatim",
+        "Fragile-operation sequencing (branch/merge ordering, workflow invocation order, runtime preconditions) must not be removed",
+        "Do not add prose encouraging subagent delegation"
+      ],
+      "stories": [
+        {
+          "title": "Remove the stray ultrathink token from project-spec",
+          "slug": "remove-stray-ultrathink",
+          "acceptance_criteria": [
+            "The trailing 'ultrathink' token is removed from skills/project-spec/SKILL.md line 8",
+            "The surrounding sentence reads correctly",
+            "No other thinking-scaffold tokens remain anywhere in the prompt surface"
+          ],
+          "technical_context": "Sits mid-sentence at the end of the overview line, reading like an accidental paste. Opus 5 thinks by default, so it forces maximum thinking on every spec run.",
+          "points": 1,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl"
+        },
+        {
+          "title": "Reduce ENGINEERING_BASELINE.md to its project-specific stance",
+          "slug": "reduce-engineering-baseline",
+          "acceptance_criteria": [
+            "The file is approximately 150 words, down from ~1,077",
+            "The Arbitration Rule is preserved verbatim",
+            "The four Emergence priorities are preserved",
+            "The precedence order (project CLAUDE.md > baseline > situational guidance) is preserved",
+            "Restatements of Clean Code and TDD canon are removed",
+            "Every skill and workflow that references the file still resolves and reads coherently"
+          ],
+          "technical_context": "Lines 30-141 restate Martin's naming/function/comment rules, Beck's red-green-refactor, F.I.R.S.T., and SOLID. Read by every implementation, review, and hardening agent via baselinePath.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl"
+        },
+        {
+          "title": "Audit residual scaffolding in the remaining skill files",
+          "slug": "audit-residual-skill-scaffolding",
+          "acceptance_criteria": [
+            "Each headed step in project-cleanup and project-orchestrate is classified as fragile sequencing or removable scaffolding, with the classification recorded",
+            "Removable scaffolding is removed; fragile sequencing is retained unchanged",
+            "No destructive or order-dependent operation loses its guarding sequence",
+            "No verification phrasing and no delegation encouragement is introduced",
+            "A short written summary lists what was removed and what was deliberately kept"
+          ],
+          "technical_context": "project-cleanup carries 27 headed steps, project-orchestrate 25. This needs per-step judgment; a blanket trim is explicitly out of scope. Both files also carry v2.0.0 runtime preconditions that must survive.",
+          "points": 5,
+          "executor": "claude",
+          "priority": "P2-medium",
+          "persona": "impl"
+        }
+      ]
+    },
+    {
+      "name": "Installer Source Checkout Fix",
+      "slug": "installer-source-checkout-fix",
+      "description": "bin/install.js resolves its target by walking up from __dirname looking for a node_modules ancestor. Run from a source checkout none exists, the loop terminates at the filesystem root, and the installer targets /.claude/skills. Detect the source-checkout case and resolve to the repo root.",
+      "subdomain": "supporting",
+      "depends_on": [],
+      "shared_design_concerns": [
+        "The existing global (npm_config_global) and node_modules install paths must keep working unchanged"
+      ],
+      "stories": [
+        {
+          "title": "Resolve the install target correctly from a source checkout",
+          "slug": "fix-resolve-skills-dir",
+          "acceptance_criteria": [
+            "Running the installer from a source checkout targets the repo root's .claude/skills",
+            "Running from under node_modules still targets the consuming project root",
+            "Running with npm_config_global=true still targets ~/.claude/skills",
+            "The resolver never returns the filesystem root",
+            "Unit tests cover all three paths plus the root-guard"
+          ],
+          "technical_context": "bin/install.js resolveSkillsDir(), lines ~45-62. The walk-up loop's terminating condition is projectRoot !== path.dirname(projectRoot), which bottoms out at '/'. A source checkout can be detected by the presence of package.json with the expected name, or bin/ and skills/ as siblings.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    "Claude Code Workflow tool must be available in-session (project-orchestrate step 0 precondition)",
+    "Skills must be installed at .claude/skills/ including _workflows/ and _guidance/",
+    "Node.js test runner for bin/install.js and resolver unit tests",
+    "Baseline reference: git tag opus-4-8 at fb67d42"
+  ],
+  "design_concerns": [
+    "Opus 5 self-verifies unprompted; the documented remedy for verification scaffolding is deletion, not rewriting, and carries no capability regression",
+    "Opus 5 delegates to subagents more readily than 4.8 — the reverse of prior tuning, so any delegation encouragement written for 4.8 is now counterproductive",
+    "Effort does not reliably shorten visible output on Opus 5; prompting does. Do not use effort as a verbosity control",
+    "skills/ and lib/ are the source of truth; .claude/skills/ is a derived install and must not be hand-edited",
+    "The Workflow runtime cannot import across files — shared logic is inlined and kept in sync by inline_sync, so any new shared module must follow that convention",
+    "Fan-out reduction must be verifiable by static inspection, since per-run token accounting does not exist",
+    "The harness runs from the .claude/skills/ snapshot while the run edits skills/, so skills cannot mutate under themselves mid-run"
+  ],
+  "scaffold_mode": "single-pass",
+  "design_spike": false
+}
