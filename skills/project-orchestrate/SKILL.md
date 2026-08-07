@@ -412,6 +412,10 @@ personaPreambles:   { impl: "...", ops: "...", research: "..." }
 baselinePath:       <absolute path to shared/references/ENGINEERING_BASELINE.md> (always set; applies to every story)
 situationalGuidance: <the two guidance SKILL.md paths from the non-registered _guidance/ directory — `<skills-root>/_guidance/design-patterns/SKILL.md` and `<skills-root>/_guidance/domain-modeling/SKILL.md` (resolve `<skills-root>` per Step 3b) — set ONLY when the current epic's subdomain is `core`; omit or pass [] for supporting/generic/untagged epics>
 isolationStrategy:  <optional 'auto' | 'worktree' | 'serial-in-tree'; default 'auto'. Omit it and existing callers behave unchanged. 'auto' lets the pipeline detect whether `node_modules` is tracked (→ worktree-safe) or untracked (→ serial-in-tree, the common case). A concrete value forces that strategy; forcing 'worktree' on untracked `node_modules` logs a prominent warning and proceeds (deps must already exist in each worktree or builds fail). No env-var equivalent.>
+sessionModel:       <optional 'haiku' | 'sonnet' | 'opus' — the tier you are running as.
+                     Fill in your own tier, the same way you fill in every other argument
+                     here. Stages defined relative to the session (review) resolve only
+                     when this is set; omit it and they inherit the session tier silently.>
 ```
 
 Wait for the workflow to return. The return is `SprintStoryReturn[]` — one entry per completed (or blocked / failed) story per `lib/workflows/schemas/SprintStoryReturnSchema.json`.

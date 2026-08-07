@@ -188,6 +188,11 @@ Invoke the Workflow tool with `scriptPath` set to the resolved path and `args`:
 skeleton:          { project: { name, description, global_preamble, non_functional_requirements }, epics: [...] }   # the Pass 1 manifest
 prdPath:           <absolute path to the PRD>
 conventionsPath:   ../shared/references/CONVENTIONS.md   # optional but recommended
+sessionModel:      <optional 'haiku' | 'sonnet' | 'opus' — the tier you are running as.
+                    Fill in your own tier, the same way you fill in every other argument
+                    here. Carried for contract consistency; elaborate inherits the session
+                    by design. Stages defined relative to the session resolve only when
+                    this is set; omit it and they inherit the session tier silently.>
 ```
 
 The workflow returns `Epic[]` per `lib/workflows/schemas/EpicSchema.json`, each with `stories[]` populated. Failed epics return `null` in the array.
