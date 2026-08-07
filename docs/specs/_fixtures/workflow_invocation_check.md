@@ -9,14 +9,13 @@ Minimal PRD designed so its full orchestration exercises every workflow script s
 
 ## Overview
 
-Builds a tiny shareable image-resizer module — three small epics with cross-cutting design concerns sufficient to trigger the design-spike pre-epic. Carries `scaffold_mode: two-pass` frontmatter to force two-pass scaffolding so `elaborate_epics.js` runs; the multi-epic structure auto-triggers the design-spike injection so the foundational ADR is authored. Sprint execution exercises `sprint_pipeline.js`. The emulation hardening pass exercises `adversarial_verify.js`. The cleanup phase exercises `review_panel.js`.
+Builds a tiny shareable image-resizer module — three small epics with cross-cutting design concerns sufficient to trigger the design-spike pre-epic. Carries `scaffold_mode: two-pass` frontmatter to force two-pass scaffolding so `elaborate_epics.js` runs; the multi-epic structure auto-triggers the design-spike injection so the foundational ADR is authored. Sprint execution exercises `sprint_pipeline.js`. The emulation hardening pass exercises `adversarial_verify.js`.
 
-When orchestrating this fixture, the workflow tool UI should show four named workflow runs in addition to the per-spec orchestration:
+When orchestrating this fixture, the workflow tool UI should show three named workflow runs in addition to the per-spec orchestration:
 
 - `elaborate-epics` (during scaffold)
 - `sprint-pipeline` (one per sprint executed; expect 2-3)
 - `adversarial-verify` (during emulation Phase 5.5)
-- `review-panel` (during cleanup Phase 5.5)
 
 If any of these don't appear, the corresponding skill rewrite didn't take effect in this Claude Code session — likely the Workflow tool isn't available or the skill markdown wasn't picked up post-install.
 

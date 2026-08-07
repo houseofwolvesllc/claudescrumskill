@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+- **`review_panel.js` and `/project-cleanup` Phase 5.5** (`lib/workflows/`, `skills/project-cleanup/SKILL.md`): the cleanup flow ran a 4-lens panel (correctness, security, style, tests) over the same diff the per-story review agent in `sprint_pipeline.js` had already reviewed — a second full pass for no new coverage. Phase 5.5 is gone, the now-unreferenced workflow script is deleted, and its manifest/schema surface (the inline manifest entry, the `lens` property on `ReviewVerdictSchema`) goes with it. Security coverage is preserved by folding the security lens's focus (injection sinks, missing authentication, broken authorization, secret exposure, unvalidated input reaching dangerous APIs, unjustified permission expansion) into the surviving per-story review prompt, which runs while story context is still live. A new `test/workflow_references.test.js` guards the invariant in both directions: every workflow a `SKILL.md` invokes ships at `lib/workflows/`, and every workflow shipped there is invoked by a `SKILL.md`.
+
 ## [2.2.1] — 2026-07-20
 
 ### Fixed

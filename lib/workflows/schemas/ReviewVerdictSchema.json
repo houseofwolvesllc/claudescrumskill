@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/houseofwolvesllc/claudescrumskill/schemas/ReviewVerdictSchema.json",
   "title": "ReviewVerdictSchema",
-  "description": "Output of a single review pass (per-lens verdict in review_panel.js, or single-pass review in older skills).",
+  "description": "Output of a review pass over a change set.",
   "type": "object",
   "required": ["recommendation", "findings", "summary"],
   "properties": {
@@ -31,11 +31,6 @@
     "summary": {
       "type": "string",
       "description": "Reviewer's one-paragraph summary of the pass."
-    },
-    "lens": {
-      "type": "string",
-      "enum": ["correctness", "security", "style", "tests"],
-      "description": "Set by review_panel.js when running multi-lens; absent in single-pass review."
     }
   },
   "additionalProperties": false,
