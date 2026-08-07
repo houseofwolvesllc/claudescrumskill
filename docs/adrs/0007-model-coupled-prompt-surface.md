@@ -79,3 +79,48 @@ This is the one place where the "the model already knows it, so delete it" princ
 - Audit: `docs/residual-scaffolding-audit.md`
 - Baseline for comparison: git tag `opus-4-8` (fb67d42)
 - Amends ADR-0003 (see its 2026-08-07 amendment): `review_panel.js` is withdrawn.
+
+## Amendment (2026-08-07): tiering resolves, and is story-aware
+
+Decision 3 above shipped incomplete, and a smoke test caught it. The resolver's
+`ONE_TIER_DOWN` target computes from `sessionModel` — an *optional* workflow
+argument that appeared in none of the invoking `SKILL.md` files. No caller passed
+it, so `review`, `skeptic`, and `judge` inherited the session tier silently. That
+is the same defect decision 3 was written to eliminate, displaced from the call
+sites into the contract, and the guard could not see it: `agent_tiers.test.mjs`
+asserts a tier is *declared*, never that it *resolves*.
+
+`sessionModel` now appears in all three invocation blocks. The orchestrator fills
+it in the way it fills in `epicSlug` and `baselinePath` — it is a model reading
+markdown and knows its own identity, so no programmatic introspection is needed
+or available. `test/invocation_contracts.test.js` guards resolution alongside the
+existing declaration guard; both are needed, because one catches a bare call site
+and the other catches a call site whose tier evaporates.
+
+The same work added the dimension decision 3 lacked. Tiering asked what *kind* of
+work a stage is but never how *hard* the story is. It now reads `points`,
+`persona`, and `priority`:
+
+- `implement` — one tier down at 1–5 points, session at 8–13, **never cheapest**
+- `review` — cheapest at 1–2, one tier down above
+- `verify` — always cheapest; it runs a command and reports a status
+- `persona: ops` and `priority: P0-critical` — never tier down, any stage
+
+The `implement` floor is the load-bearing constraint, and the asymmetry with
+`review` is deliberate: `points` is an estimate authored before anyone read the
+code, so the stage that *produces the artifact* must degrade gently, while the
+stage whose misses are caught downstream by `verify` and the tests may floor
+lower. A future contributor tempted to "simplify" by giving both stages the same
+floor should read this paragraph first.
+
+No Gang of Four pattern was named for the two overrides. Two rules is not an axis
+of variation; per the Arbitration Rule this stays a pure function over constant
+maps until a third override actually arrives.
+
+Deferred with reasoning: tiering the `adversarial_verify` judge by finding
+severity. The judge's verdict decides whether a finding survives at all, with no
+downstream check — structurally like `implement`, not like `review` — and
+`severity` is self-reported by the emulator with no review step, a weaker signal
+than `points`. If judge cost becomes material, tier the *skeptic* first.
+
+See `docs/specs/20260807_152828_effective_and_story_aware_tiering.md`.
