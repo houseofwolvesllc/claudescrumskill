@@ -374,9 +374,7 @@ Invoke the `/sprint-plan` skill:
 story whose `blocked_by` list contains an open (not yet `done`) story. This
 naturally gates implementation epics on the design-spike epic when one
 exists: implementation stories list the design-spike CONTEXT.md story as a
-blocker, so they cannot enter a sprint until that story completes. The
-existing dependency mechanism in `/sprint-plan` already honors this; this
-note is an explicit affirmation, not a new requirement.
+blocker, so they cannot enter a sprint until that story completes.
 
 Since this is autonomous mode, accept the default sprint plan without waiting for user confirmation — the skill's proposed sprint based on priority ordering and velocity target is the plan.
 
@@ -726,7 +724,6 @@ full-project emulation.
 **Story Points:** <estimate based on scope>
 **Acceptance Criteria:**
 - <derived from the issue description>
-- Verify fix by re-checking the specific integration seam / layer contract / workflow
 
 #### Fix: <next issue>
 ...
@@ -746,7 +743,7 @@ This creates the milestone, issues, labels, and branches for the hardening work.
 
 ### Step 12: Execute Hardening Sprints
 
-Run the same sprint loop as Phase 1 (Steps 2-7) for the hardening epic. Since hardening stories are typically all `executor:claude`, this should proceed fully autonomously.
+Run the same sprint loop as Phase 1 (Steps 2-7) for the hardening epic.
 
 ### Step 13: Re-validate
 
@@ -794,7 +791,7 @@ Invoke the cleanup skill in fix mode:
 This runs across the **entire codebase** and automatically fixes:
 - Build errors and warnings (type errors, unused variables, deprecations)
 - Lint violations (ESLint/Biome/etc. with `--max-warnings 0`)
-- HATEOAS compliance gaps (missing `_links`, pagination links, consistency)
+- Violations of the architectural principles the project's `CLAUDE.md` declares
 - Dead and duplicated code (unused exports, files, dependencies, commented-out code)
 - Failing tests and coverage gaps (targets 50% minimum across all metrics)
 
@@ -1137,7 +1134,7 @@ Keep the user informed without being noisy:
 | Cleanup started | Single line: "Running project cleanup..." |
 | Cleanup complete | Phase 3 summary — 5-6 lines with pass/fail per dimension |
 | ADRs updated | Count of new ADRs + titles — 2-3 lines |
-| Orchestration complete | Full completion summary (Step 17) |
+| Orchestration complete | Full completion summary (Step 15) |
 | Error/pause | Immediate alert with context and options |
 
 ---
