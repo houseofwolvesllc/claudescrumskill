@@ -5,10 +5,11 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 
 const HOME = process.env.HOME || process.env.USERPROFILE;
-const SOURCE_DIR = path.join(__dirname, '..', 'skills');
-const WORKFLOWS_SOURCE_DIR = path.join(__dirname, '..', 'lib', 'workflows');
-const GUIDANCE_SOURCE_DIR = path.join(__dirname, '..', 'lib', 'guidance');
-const IS_GLOBAL = process.env.npm_config_global === 'true';
+const PACKAGE_ROOT = path.resolve(__dirname, '..');
+const SOURCE_DIR = path.join(PACKAGE_ROOT, 'skills');
+const WORKFLOWS_SOURCE_DIR = path.join(PACKAGE_ROOT, 'lib', 'workflows');
+const GUIDANCE_SOURCE_DIR = path.join(PACKAGE_ROOT, 'lib', 'guidance');
+const SOURCE_CHECKOUT_MARKERS = ['bin', 'skills'];
 const CONFIG_FILENAME = 'config.json';
 
 const skills = [
@@ -24,7 +25,7 @@ const skills = [
 
 async function main() {
   const skillsDir = resolveSkillsDir();
-  const location = IS_GLOBAL ? 'global (~/.claude/skills/)' : `project (${skillsDir})`;
+  const location = isGlobalInstall() ? 'global (~/.claude/skills/)' : `project (${skillsDir})`;
   console.log(`\n📋 Installing claude-scrum-skill (${location})...\n`);
 
   fs.mkdirSync(skillsDir, { recursive: true });
@@ -35,7 +36,7 @@ async function main() {
   installGuidance(skillsDir);
   await verifyWorkflowInstall(skillsDir);
 
-  if (!IS_GLOBAL) {
+  if (!isGlobalInstall()) {
     ensureGitignoreEntry(skillsDir);
   }
 
@@ -44,21 +45,56 @@ async function main() {
   console.log('   Run /project-scaffold <prd-path> to get started.\n');
 }
 
+// npm exports npm_config_global for `npm install -g`. Read at call time so the
+// resolver reflects the invocation rather than module-load order.
+function isGlobalInstall() {
+  return process.env.npm_config_global === 'true';
+}
+
 function resolveSkillsDir() {
-  if (IS_GLOBAL) {
+  if (isGlobalInstall()) {
     return path.join(HOME, '.claude', 'skills');
   }
+  return path.join(resolveProjectRoot(PACKAGE_ROOT), '.claude', 'skills');
+}
 
-  // Walk up from node_modules to find the project root.
-  let projectRoot = path.resolve(__dirname, '..');
-  while (projectRoot !== path.dirname(projectRoot)) {
-    if (path.basename(projectRoot) === 'node_modules') {
-      projectRoot = path.dirname(projectRoot);
-      break;
-    }
-    projectRoot = path.dirname(projectRoot);
+// The project the skills belong to, guarded so an install can never escape to
+// the filesystem root and write outside any project.
+function resolveProjectRoot(packageRoot) {
+  const projectRoot = findProjectRoot(packageRoot);
+  if (isFilesystemRoot(projectRoot)) {
+    throw new Error(`refusing to install to the filesystem root (resolved from ${packageRoot})`);
   }
-  return path.join(projectRoot, '.claude', 'skills');
+  return projectRoot;
+}
+
+// Installed as a dependency, the project is the first ancestor above
+// node_modules; run from a source checkout — the development case, where no
+// node_modules ancestor exists — it is the checkout itself.
+function findProjectRoot(packageRoot) {
+  for (let dir = packageRoot; !isFilesystemRoot(dir); dir = path.dirname(dir)) {
+    if (path.basename(dir) === 'node_modules') return path.dirname(dir);
+  }
+  return requireSourceCheckout(packageRoot);
+}
+
+// Structural signature of a checkout: the package's own bin/ and skills/ sit at
+// its root. Anything else is an unrecognized layout we must not guess about.
+function requireSourceCheckout(packageRoot) {
+  const isCheckout = SOURCE_CHECKOUT_MARKERS.every(marker =>
+    fs.existsSync(path.join(packageRoot, marker))
+  );
+  if (!isCheckout) {
+    throw new Error(
+      `cannot resolve an install target: ${packageRoot} is neither under node_modules ` +
+        `nor a source checkout (expected ${SOURCE_CHECKOUT_MARKERS.join('/ and ')}/)`
+    );
+  }
+  return packageRoot;
+}
+
+function isFilesystemRoot(dir) {
+  return path.dirname(dir) === dir;
 }
 
 function installSharedReferences(skillsDir) {
@@ -289,6 +325,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+  resolveSkillsDir,
+  resolveProjectRoot,
   deepMerge,
   installConfig,
   installSkills,
