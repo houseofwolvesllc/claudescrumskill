@@ -7,12 +7,6 @@ const BASELINE_PATH = path.join(
   __dirname, '..', 'skills', 'shared', 'references', 'ENGINEERING_BASELINE.md',
 );
 
-// The baseline is injected into every implementation, review, and hardening
-// subagent, so its length is paid once per agent in the fan-out. It carries only
-// the project's own stance; Clean Code and TDD canon is knowledge the model
-// already has and must not be restated here.
-const WORD_CEILING = 180;
-
 const ARBITRATION_RULE = `**Simple design is the default. Abstractions, design patterns, and domain layers
 are responses to demonstrated complexity — duplication, repeated change in one
 place, or essential domain rules — never anticipatory architecture. Arrive at
@@ -30,31 +24,23 @@ const EMERGENCE_PRIORITIES = [
   '4. Minimal classes and methods. Don\'t create abstractions you don\'t need yet.',
 ];
 
-// Canon the target model already knows — restating it buys nothing per agent.
-const RESTATED_CANON = [
-  /Hungarian notation/i,
-  /stepdown rule/i,
-  /command-query separation/i,
-  /law of demeter/i,
-  /boy scout rule/i,
-  /red\s*(?:→|->)\s*green\s*(?:→|->)\s*refactor/i,
+// The baseline reinforces Clean Code and TDD rather than assuming them. A model
+// that already knows the canon still benefits from having it in front of it at
+// implementation time, and the project owner has decided that reinforcement is
+// worth its per-agent cost. These markers are the load-bearing ones: if a future
+// trim removes them, the baseline has stopped reinforcing and this fails.
+const REINFORCED_CANON = [
+  /Law of Demeter/i,
   /F\.I\.R\.S\.T\./i,
-  /three laws/i,
+  /Red\s*(?:→|->)\s*Green\s*(?:→|->)\s*Refactor/i,
+  /Boy Scout Rule/i,
+  /Single Responsibility/i,
+  /Command-query separation/i,
 ];
 
 function baseline() {
   return fs.readFileSync(BASELINE_PATH, 'utf8');
 }
-
-function wordCount(markdown) {
-  return markdown.split(/\s+/).filter(word => /[A-Za-z0-9]/.test(word)).length;
-}
-
-test('the baseline stays short enough to inject into every subagent', () => {
-  const words = wordCount(baseline());
-
-  assert.ok(words <= WORD_CEILING, `baseline is ${words} words, ceiling is ${WORD_CEILING}`);
-});
 
 test('the baseline states the Arbitration Rule verbatim', () => {
   assert.ok(baseline().includes(ARBITRATION_RULE), 'the Arbitration Rule was altered');
@@ -67,13 +53,14 @@ test('the baseline lists the four Emergence priorities in order', () => {
 test('the baseline states the order of precedence', () => {
   const markdown = baseline();
 
-  assert.match(markdown, /`CLAUDE\.md` > this baseline > situational guidance/);
-  assert.match(markdown, /never overrides the Arbitration Rule/);
+  // The clause wraps across lines in the prose, so match across whitespace.
+  assert.match(markdown, /`CLAUDE\.md` > this baseline > situational\s+guidance/);
+  assert.match(markdown, /never\s+overrides the Arbitration Rule/);
 });
 
-test('the baseline restates no Clean Code or TDD canon', () => {
+test('the baseline reinforces Clean Code and TDD canon', () => {
   const markdown = baseline();
-  const restatements = RESTATED_CANON.filter(canon => canon.test(markdown)).map(String);
+  const missing = REINFORCED_CANON.filter(canon => !canon.test(markdown)).map(String);
 
-  assert.deepEqual(restatements, [], `canon restated in the baseline: ${restatements.join(', ')}`);
+  assert.deepEqual(missing, [], `canon missing from the baseline: ${missing.join(', ')}`);
 });

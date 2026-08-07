@@ -51,15 +51,21 @@ The non-obvious part: the `implement` stage, which intentionally runs at the ses
 
 Tier resolution never degrades below the session model. Tiering "one down" from an already-inexpensive session is meaningless, and the resolver suppresses it.
 
-### 4. The engineering baseline states project stance only
+### 4. The engineering baseline reinforces the canon rather than assuming it
 
-`ENGINEERING_BASELINE.md` went from 1,077 to 190 words. It is read by every implementation, review, and hardening agent, so its cost multiplies across the whole fan-out — and roughly 85% of it restated Clean Code and TDD canon the model already knows.
+This decision was **reversed during review, and the reversal is the decision on record.**
 
-What survives is what the model *cannot* infer: the Arbitration Rule, the four Emergence priorities, and the precedence order. The header asserts that Clean Code and test-driven development are binding without restating them. `test/engineering_baseline.test.js` guards both directions — the stance must stay, the canon must not creep back.
+The retune initially cut `ENGINEERING_BASELINE.md` from 1,077 to 190 words. The reasoning followed the same logic as the rest of this ADR: the file is read by every implementation, review, and hardening agent, so its length multiplies across the fan-out, and roughly 85% of it restated Clean Code and TDD canon the model already knows. On that reasoning, only what the model *cannot* infer — the Arbitration Rule, the Emergence priorities, the precedence order — earns its place.
+
+The project owner rejected that trade. The canon stays as **reinforcement**: having Clean Code and TDD in front of an implementation agent at write time is judged worth its per-agent cost even though the model could recall it unprompted. Recall and salience are not the same thing, and the cost is a known quantity while the quality delta from removing it is not.
+
+This is the one place where the "the model already knows it, so delete it" principle running through decisions 2 and 3 is deliberately **not** applied. The distinction: deleting *verification scaffolding* removes work the model would otherwise duplicate, and the saving is mechanical. Deleting *reference material* removes context, and the loss is not measurable in advance.
+
+`test/engineering_baseline.test.js` now guards both halves: the project's own stance is pinned verbatim (Arbitration Rule, the four Emergence priorities in order, the precedence chain), and the load-bearing canon markers must be present. A future trim cannot quietly remove either.
 
 ## Consequences
 
-**Positive.** Roughly 20 of ~118 agent invocations per representative run are eliminated outright and ~20 more move to the cheapest tier; ~1,150 tokens leave every agent that reads the baseline. Fifty-four new tests convert this run's invariants from convention into build failures.
+**Positive.** Roughly 20 of ~118 agent invocations per representative run are eliminated outright and ~20 more move to the cheapest tier. Fifty-four new tests convert this run's invariants from convention into build failures.
 
 **Negative.** The suite is now explicitly coupled to a model generation, and that coupling has to be revisited on each migration rather than ignored. The tier map is a judgment call encoded as a constant — if a stage's character changes, the map must change with it.
 
