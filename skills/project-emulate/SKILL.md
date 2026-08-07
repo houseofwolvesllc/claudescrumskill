@@ -520,6 +520,11 @@ Pass the finding list (per `EmulationFindingSchema`) and optional `codebaseConte
 ```yaml
 findings:         [<EmulationFinding>, ...]   # collected during Phases 1-5
 codebaseContext:  { projectRoot: <path>, languages: ["typescript", ...] }
+sessionModel:     <optional 'haiku' | 'sonnet' | 'opus' — the tier you are running as.
+                   Fill in your own tier, the same way you fill in every other argument
+                   here. Both stages of this workflow are defined relative to the session
+                   (skeptic, judge) and resolve only when this is set; omit it and they
+                   inherit the session tier silently.>
 ```
 
 The workflow returns `[{ finding, skeptic, verdict }, ...]` where `verdict.isReal` is a boolean and `verdict.severity_adjustment` may suggest raising/lowering severity.
