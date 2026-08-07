@@ -526,7 +526,7 @@ claudescrumskill ships in two cooperating layers. The split is documented in det
 |--------|---------|---------|
 | `sprint_pipeline.js` | per-story pipeline: implement → review → verify → openPR | `/project-orchestrate` Phase 1 Step 3 |
 | `elaborate_epics.js` | Pass 2 of two-pass scaffolding, in parallel | `/project-scaffold` |
-| `adversarial_verify.js` | claimant/skeptic/judge per emulation finding | `/project-emulate` |
+| `adversarial_verify.js` | skeptic/judge per emulation finding | `/project-emulate` |
 
 ### Schemas at `lib/workflows/schemas/`
 
