@@ -14,6 +14,8 @@ const {
   isTestFile,
   findFiles,
   verifyWorkflowInstall,
+  resolveSkillsDir,
+  resolveProjectRoot,
 } = require('../bin/install.js');
 
 const DEFAULT_CONFIG = {
@@ -288,4 +290,70 @@ test('verifyWorkflowInstall throws when a test file leaks into the payload', asy
   fs.writeFileSync(path.join(skillsDir, '_workflows', '_shared', 'leaked.test.mjs'), '// leak\n');
 
   await assert.rejects(() => verifyWorkflowInstall(skillsDir), /shipped test files/);
+});
+
+const REPO_ROOT = path.resolve(__dirname, '..');
+
+// The structural signature the resolver looks for: bin/ and skills/ at the root.
+function makeSourceCheckout(parent) {
+  const checkout = path.join(parent, 'claude-scrum-skill');
+  fs.mkdirSync(path.join(checkout, 'bin'), { recursive: true });
+  fs.mkdirSync(path.join(checkout, 'skills'), { recursive: true });
+  return checkout;
+}
+
+// npm sets npm_config_global for `npm i -g`; the resolver reads it at call time.
+function withNpmConfigGlobal(value, run) {
+  const original = process.env.npm_config_global;
+  process.env.npm_config_global = value;
+  try {
+    return run();
+  } finally {
+    if (original === undefined) delete process.env.npm_config_global;
+    else process.env.npm_config_global = original;
+  }
+}
+
+test('resolveSkillsDir from a source checkout targets the checkout root, not the filesystem root', () => {
+  const skillsDir = withNpmConfigGlobal('false', () => resolveSkillsDir());
+
+  assert.equal(skillsDir, path.join(REPO_ROOT, '.claude', 'skills'));
+});
+
+test('resolveProjectRoot returns the checkout itself when no node_modules ancestor exists', () => {
+  const checkout = makeSourceCheckout(freshTempDir());
+
+  assert.equal(resolveProjectRoot(checkout), checkout);
+});
+
+test('resolveProjectRoot returns the consuming project root when installed under node_modules', () => {
+  const consumer = freshTempDir();
+  const installed = path.join(consumer, 'node_modules', '@houseofwolvesllc', 'claude-scrum-skill');
+  fs.mkdirSync(path.join(installed, 'bin'), { recursive: true });
+  fs.mkdirSync(path.join(installed, 'skills'), { recursive: true });
+
+  assert.equal(resolveProjectRoot(installed), consumer);
+});
+
+test('resolveSkillsDir under npm_config_global=true targets the home skills directory', () => {
+  const skillsDir = withNpmConfigGlobal('true', () => resolveSkillsDir());
+
+  const home = process.env.HOME || process.env.USERPROFILE;
+  assert.equal(skillsDir, path.join(home, '.claude', 'skills'));
+});
+
+test('resolveProjectRoot refuses a node_modules sitting at the filesystem root', () => {
+  const rootInstall = path.join(path.parse(REPO_ROOT).root, 'node_modules', 'claude-scrum-skill');
+
+  assert.throws(() => resolveProjectRoot(rootInstall), /filesystem root/);
+});
+
+test('resolveProjectRoot refuses the filesystem root itself', () => {
+  assert.throws(() => resolveProjectRoot(path.parse(REPO_ROOT).root));
+});
+
+test('resolveProjectRoot refuses a directory that is neither a checkout nor under node_modules', () => {
+  const stray = freshTempDir();
+
+  assert.throws(() => resolveProjectRoot(stray), /source checkout/);
 });
