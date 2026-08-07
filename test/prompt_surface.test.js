@@ -22,19 +22,34 @@ const THINKING_SCAFFOLDS = [
   /<\/?thinking>/i,
 ];
 
+// Opus 5 verifies its own work unprompted, so asking it to check that work again
+// buys a second pass of the same reasoning at full price.
+const VERIFICATION_SCAFFOLDS = [
+  /double[- ]check/i,
+  /re-?verify/i,
+  /(?:confirm|verify|check) your (?:own )?work/i,
+];
+
 function promptSurfaceFiles() {
   const isMarkdown = file => path.extname(file) === '.md';
   return PROMPT_SURFACE_DIRS.flatMap(dir => findFiles(dir, isMarkdown));
 }
 
-function scaffoldsIn(markdown) {
-  return THINKING_SCAFFOLDS.filter(scaffold => scaffold.test(markdown));
+function filesCarrying(scaffolds) {
+  const carries = markdown => scaffolds.some(scaffold => scaffold.test(markdown));
+  return promptSurfaceFiles()
+    .filter(file => carries(fs.readFileSync(file, 'utf8')))
+    .map(file => path.relative(REPO_ROOT, file));
 }
 
 test('no prompt-surface markdown carries a thinking scaffold', () => {
-  const offenders = promptSurfaceFiles()
-    .filter(file => scaffoldsIn(fs.readFileSync(file, 'utf8')).length > 0)
-    .map(file => path.relative(REPO_ROOT, file));
+  const offenders = filesCarrying(THINKING_SCAFFOLDS);
 
   assert.deepEqual(offenders, [], `thinking scaffolds remain in: ${offenders.join(', ')}`);
+});
+
+test('no prompt-surface markdown asks the model to re-check its own work', () => {
+  const offenders = filesCarrying(VERIFICATION_SCAFFOLDS);
+
+  assert.deepEqual(offenders, [], `verification scaffolds remain in: ${offenders.join(', ')}`);
 });
