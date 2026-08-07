@@ -101,17 +101,32 @@ The same work added the dimension decision 3 lacked. Tiering asked what *kind* o
 work a stage is but never how *hard* the story is. It now reads `points`,
 `persona`, and `priority`:
 
-- `implement` — one tier down at 1–5 points, session at 8–13, **never cheapest**
 - `review` — cheapest at 1–2, one tier down above
 - `verify` — always cheapest; it runs a command and reports a status
+- `implement` — **session model, every story, no difficulty row**
 - `persona: ops` and `priority: P0-critical` — never tier down, any stage
 
-The `implement` floor is the load-bearing constraint, and the asymmetry with
-`review` is deliberate: `points` is an estimate authored before anyone read the
-code, so the stage that *produces the artifact* must degrade gently, while the
-stage whose misses are caught downstream by `verify` and the tests may floor
-lower. A future contributor tempted to "simplify" by giving both stages the same
-floor should read this paragraph first.
+`implement`'s exclusion is the load-bearing constraint, and it is a decision
+rather than an omission. An earlier revision of this amendment tiered `implement`
+one tier down for 1–5 point stories with a floor; measured against this repo's
+own backlog that turned out to move **96% of all stories** (55 of 57 are ≤5
+points) off the session model, which is not a marginal adjustment but a change of
+default. The project owner's requirement is that output quality match or exceed
+the pre-retune build, so `implement` now holds at the session model for every
+story and behaves exactly as it did before tiering existed.
+
+The asymmetry with `review` is the reasoning: `implement` writes the artifact, so
+its output quality *is* the product's quality, and `points` is an estimate
+authored before anyone read the code — tiering the artifact-producing stage on an
+estimate stakes the product on a guess. `review`'s misses are caught downstream by
+`verify` and the test suite; an implementation's are not. A future contributor
+tempted to "simplify" by giving `implement` a difficulty row should read this
+paragraph first.
+
+The saving therefore comes from where the waste actually was: the mechanical
+stages, the `verify` command-runner, the tiered-down `review`, and the two agents
+deleted outright (`review_panel`'s four lenses and `adversarial_verify`'s
+claimant) — not from the stage that produces the code.
 
 No Gang of Four pattern was named for the two overrides. Two rules is not an axis
 of variation; per the Arbitration Rule this stays a pure function over constant
