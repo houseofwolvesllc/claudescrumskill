@@ -520,7 +520,7 @@ claudescrumskill ships in two cooperating layers. The split is documented in det
 └────────────────────────────────────────────────────────────┘
 ```
 
-### Workflow scripts shipped in v2.0.0
+### Workflow scripts shipped at `lib/workflows/`
 
 | Script | Purpose | Used by |
 |--------|---------|---------|
