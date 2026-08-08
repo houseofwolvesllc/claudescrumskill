@@ -4,3 +4,5 @@ node_modules/
 .devcontainer/
 .claude/
 _reference/
+# Measurement runs and protocols — inspection artifacts, never committed
+docs/measurement/
