@@ -1,7 +1,7 @@
 ---
 title: Bound concurrency by available disk as well as cores
 epic: parallel-run-safety
-status: backlog
+status: done
 executor: claude
 priority: P2-medium
 points: 3

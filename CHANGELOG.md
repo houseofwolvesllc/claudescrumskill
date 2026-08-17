@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] — 2026-08-17
+
+Unlocks parallel story execution. Worktree mode — concurrent stories, each in
+its own `git worktree`, fanning into the release branch behind a serialized
+merge — was already built but effectively unreachable: the isolation gate
+selected it only when `node_modules` was vendored into git, because
+`git worktree add` materializes tracked files only. The gate asked whether
+dependencies were already tracked when it should have asked whether the
+worktree can obtain them.
+
+### Added
+- **`dependencyStrategy` — four ways a worktree gets its dependencies** (`lib/workflows/_shared/resolve_dependency_strategy.mjs`): `assume-present` (today's behaviour, and still the default), `clone` (copy-on-write, near-instant and isolated but non-validating), `install` (the project's clean-install command — slower, and the only strategy that *validates*), and `symlink` (cheapest, but shared mutable state). Package manager is resolved from the lockfile across npm, pnpm, yarn, and bun; on pnpm the content-addressable store already makes per-worktree installs cheap, so the resolver prefers `install` there and the tradeoff this feature manages does not apply.
+- **Disk-bounded worktree concurrency** (`_shared/resolve_worktree_concurrency.mjs`, `_shared/limit_concurrency.mjs`): the fan-out cap was `min(16, cores − 2)`, but sixteen worktrees times a large dependency tree is many gigabytes of transient disk. Concurrency is now bounded by available disk as well as cores, and **which constraint bound the run is logged**, so a slow run is diagnosable rather than mysterious.
+- **An `infrastructure-failed` story status** (`schemas/SprintStoryReturnSchema.json`, `_shared/classify_story_failure.mjs`): `failed` meant *the story's code did not work*, and reusing it for a failed dependency setup sends someone hunting a phantom bug. This is not hypothetical — while building this very release, a story was reported `failed` when its agent ended without returning structured output, despite the work being complete.
+
+### Changed
+- **The isolation gate asks whether dependencies can be obtained** (`_shared/detect_repo_layout.mjs`): `classifyIsolationStrategy` now takes the viable provisioning strategies and selects worktree mode whenever one exists, falling back to serial-in-tree only when none does. A repo with untracked `node_modules` runs stories in parallel. The existing `isolationStrategy` override semantics are preserved.
+- **Strategy selection is story-aware**: `clone` by default for speed, escalating to a validating `install` for any story that touches `package.json` or a lockfile. Under `clone` or `symlink` a missing lockfile update passes silently and breaks CI later; under `install` it fails during the story. A post-hoc reconciliation **reports** a story that touched dependency files without having been escalated rather than silently re-provisioning — a silent correction would hide a detection gap that recurs.
+- **Story branches are namespaced per epic** — `story/<epic-slug>/<story-slug>`. Two concurrent runs in this repo both wanted `story/document-credential-resolution`, and afterwards the ref pointed at whichever finished last. The collision was found by a contaminated measurement rather than by a test, so a structural guard now asserts no story branch is constructed without its epic prefix.
+
+### Fixed
+- **Unsafe strategies are refused, not silently downgraded**: `clone` falls back to `install` where the filesystem has no copy-on-write support rather than performing the expensive recursive copy it exists to avoid, and `symlink` **fails loud** — naming the offending story — when a batch contains a story that touches `package.json` or a lockfile, because one story running an install would corrupt its siblings mid-run.
+
+### Note on design
+The spec named a candidate Gang of Four **Strategy** pattern for the four provisioning mechanisms — the first time this suite has named one rather than declining. It was recorded as an explicit, non-binding hypothesis, and it did not survive contact: the resolver shipped as twelve plain functions over a `PROVISIONERS` dispatch table with zero classes. The Arbitration Rule governed, which is the pattern-naming discipline working as intended.
+
 ## [2.3.0] — 2026-08-08
 
 Retunes the prompt surface and agent fan-out for Claude Opus 5. The suite was

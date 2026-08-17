@@ -1,7 +1,7 @@
 ---
 title: Escalate to a validating install for dependency-touching stories
 epic: dependency-provisioning
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 5

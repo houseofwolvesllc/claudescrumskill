@@ -1,7 +1,7 @@
 ---
 title: Add the dependencyStrategy argument and its four strategies
 epic: dependency-provisioning
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 5

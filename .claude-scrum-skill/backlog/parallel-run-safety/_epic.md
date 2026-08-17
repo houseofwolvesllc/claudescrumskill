@@ -1,7 +1,7 @@
 ---
 title: Parallel Run Safety
 slug: parallel-run-safety
-status: open
+status: closed
 created: 2026-08-17T18:20:51Z
 subdomain: supporting
 ---

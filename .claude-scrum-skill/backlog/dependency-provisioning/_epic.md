@@ -1,7 +1,7 @@
 ---
 title: Dependency Provisioning
 slug: dependency-provisioning
-status: open
+status: closed
 created: 2026-08-17T18:20:51Z
 subdomain: core
 ---

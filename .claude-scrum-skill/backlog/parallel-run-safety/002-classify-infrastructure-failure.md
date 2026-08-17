@@ -1,7 +1,7 @@
 ---
 title: Report dependency setup failure as infrastructure, not code failure
 epic: parallel-run-safety
-status: backlog
+status: done
 executor: claude
 priority: P2-medium
 points: 3

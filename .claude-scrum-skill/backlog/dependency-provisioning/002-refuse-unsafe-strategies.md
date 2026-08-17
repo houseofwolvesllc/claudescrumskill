@@ -1,7 +1,7 @@
 ---
 title: Refuse unsafe strategies rather than silently degrading
 epic: dependency-provisioning
-status: backlog
+status: done
 executor: claude
 priority: P1-high
 points: 3
