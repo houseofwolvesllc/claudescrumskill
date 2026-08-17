@@ -90,7 +90,7 @@ automatically as a release gate.
 - **Main branch:** `main` — production-ready code, human-only write access
 - **Development branch:** `development` — integration branch, gh token has full access
 - **Release branches:** `release/<epic-slug>` (e.g., `release/core-api`, `release/security-hardening`)
-- **Story branches:** `story/<issue-number>-<short-slug>` (e.g., `story/42-user-auth-endpoint`)
+- **Story branches:** `story/<epic-slug>/<story-slug>` (e.g., `story/core-api/user-auth-endpoint`) — story slugs are unique within an epic, not across the backlog, so the epic namespace is what keeps two epics running at once from driving one ref
 - **Spike branches:** `spike/<issue-number>-<short-slug>`
 - **Bug fix branches:** `fix/<issue-number>-<short-slug>`
 
@@ -100,10 +100,10 @@ automatically as a release gate.
 main (human-only — gh token has NO write access)
  └── development (gh token has full access — sprint approval gate)
       └── release/core-api (epic release branch)
-           ├── story/1-init-project-structure
-           ├── story/2-database-schema
-           ├── story/3-auth-endpoints
-           └── story/4-user-crud
+           ├── story/core-api/init-project-structure
+           ├── story/core-api/database-schema
+           ├── story/core-api/auth-endpoints
+           └── story/core-api/user-crud
 ```
 
 - **Story → Release branch:** Auto-merge when CI passes. No human review required.

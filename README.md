@@ -368,9 +368,9 @@ All modes share the same git branch strategy:
 main (human-only — requires your review)
  +-- development (sprint approval gate)
       +-- release/core-api
-           +-- story/1-init-project     --> auto-merge
-           +-- story/2-database-schema  --> auto-merge
-           +-- story/3-auth-endpoints   --> auto-merge
+           +-- story/core-api/init-project     --> auto-merge
+           +-- story/core-api/database-schema  --> auto-merge
+           +-- story/core-api/auth-endpoints   --> auto-merge
 ```
 
 - **Story --> Release branch:** Auto-merge when CI passes (or direct merge in local mode)

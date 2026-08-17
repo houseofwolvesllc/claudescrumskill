@@ -84,9 +84,13 @@ repo's final `git status`/`git log` for each.
    resolvable, so a fresh worktree can be provisioned and the gate says so.
    **Expect:** a `log` `Isolation strategy: worktree (source=auto, git ls-files
    node_modules: empty)` followed by a `Dependency strategy: clone …` (or
-   `install …` if the scratch repo carries a `pnpm-lock.yaml`) outcome line;
-   stories run **concurrently** in isolated worktrees, each carrying the
-   provisioning instruction; all four return `status: "done"`.
+   `install …` if the scratch repo carries a `pnpm-lock.yaml`) outcome line and a
+   `Worktree fan-out: N concurrent worktrees — bound by cores: min(16, <host
+   cores> - 2 reserved for the host) …` line whose `N` matches the host; stories
+   run **concurrently** in isolated worktrees, each carrying the provisioning
+   instruction; all four return `status: "done"`; and `git -C "$M1" branch
+   --list 'story/*'` shows the four branches namespaced under their epic —
+   `story/m1/indep-a` and siblings, never a flat `story/indep-a`.
 
 2. **Dirty-tree carryover (F7b).** Before re-running, leave a conflicting
    uncommitted change and an untracked non-ignored scratch file (e.g. `stray.tmp`)
@@ -115,6 +119,25 @@ repo's final `git status`/`git log` for each.
    directory (or otherwise make `git ls-files node_modules` error). **Expect:**
    `git ls-files node_modules: command-error`, strategy falls back to
    **serial-in-tree**, and the **batch is NOT killed** by the detector failure.
+
+6. **Disk-bound fan-out.** Put the scratch repo on a deliberately small volume
+   (e.g. a ~2 GB disk image or `tmpfs` mount) and give it a `node_modules` large
+   enough that only two or three copies fit in 80% of the free space.
+   **Expect:** a `Worktree fan-out: N concurrent worktrees — bound by disk (…
+   spendable of … free, at … per worktree). Cores would have allowed …` line
+   with `N` **below** the core bound, **at most `N` worktrees present at any one
+   moment** (watch `git worktree list` while it runs), and the volume never
+   fills. Shrink the volume until one worktree alone exceeds the budget and the
+   line becomes the `WARNING: … a single worktree already exceeds the budget …`
+   variant with `N == 1`.
+
+7. **Unprovisionable worktree.** Force the provisioning command to fail in the
+   worktrees — e.g. run under `dependencyStrategy: install` with the registry
+   unreachable, or under `clone` with the main tree's `node_modules` removed.
+   **Expect:** the affected stories return `status: "infrastructure-failed"`,
+   **not** `"failed"`, with a `reason` naming the strategy that failed and
+   quoting what the worktree reported; no review or verify stage runs for them;
+   and a story that instead breaks its own build still returns `"failed"`.
 
 ## Gate
 
