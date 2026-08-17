@@ -507,7 +507,7 @@ claudescrumskill ships in two cooperating layers. The split is documented in det
                        ▼
 ┌────────────────────────────────────────────────────────────┐
 │  Workflows — JavaScript at lib/workflows/ (the substrate)  │
-│  - Fan-out (parallel, pipeline) up to 16 concurrent agents  │
+│  - Fan-out (parallel, pipeline), bounded by cores and disk  │
 │  - Schema-validated structured returns                      │
 │  - Journal-based in-session resume                          │
 │  - Installed at ~/.claude/skills/_workflows/                │
@@ -527,6 +527,33 @@ claudescrumskill ships in two cooperating layers. The split is documented in det
 | `sprint_pipeline.js` | per-story pipeline: implement → review → verify → openPR | `/project-orchestrate` Phase 1 Step 3 |
 | `elaborate_epics.js` | Pass 2 of two-pass scaffolding, in parallel | `/project-scaffold` |
 | `adversarial_verify.js` | skeptic/judge per emulation finding | `/project-emulate` |
+
+### Parallel story execution
+
+Stories in a sprint can run **concurrently**, each in its own `git worktree`, fanning into the release branch behind a serialized merge. Whether that happens depends on one question: **can a fresh worktree get its dependencies?**
+
+`git worktree add` materializes tracked files only, so a gitignored `node_modules` leaves a new worktree empty. The `dependencyStrategy` argument decides how it gets filled:
+
+| Strategy | How | Isolated | Validates | Cost |
+|---|---|---|---|---|
+| `assume-present` | nothing — the worktree already has what it needs (vendored deps) | — | no | zero |
+| `clone` | copy-on-write clone from the main tree | yes — CoW diverges on write | **no** | near-zero |
+| `install` | the project's clean-install command | yes | **yes** | minutes + disk |
+| `symlink` | symlink to the main tree | **no** — shared mutable state | no | zero |
+
+`assume-present` is the default, so existing callers behave exactly as before. When none is viable, execution falls back to **serial-in-tree**: one story at a time on the shared working tree, with the tree reset between stories.
+
+**Selection is story-aware.** The batch default is `clone` for speed, escalating to a validating `install` for any story that touches `package.json` or a lockfile. Under `clone` or `symlink`, a story that adds a dependency without updating the lockfile passes silently and breaks CI later; under `install` it fails during the story. Only `install` proves the tree matches a clean install.
+
+**Unsafe combinations are refused, not quietly downgraded.** `clone` falls back to `install` on a filesystem without copy-on-write support rather than performing the expensive recursive copy it exists to avoid. `symlink` fails loud — naming the offending story — when a batch contains a dependency-touching story, because one story running an install would corrupt its siblings mid-run.
+
+The package manager is resolved from the lockfile present (npm, pnpm, yarn, bun). On pnpm the content-addressable store already makes per-worktree installs cheap, so `install` is preferred over `clone` there.
+
+Concurrency is bounded by **available disk as well as cores**, and the binding constraint is logged — a slow run should be diagnosable rather than mysterious. Story branches are namespaced `story/<epic-slug>/<story-slug>` so batches from different epics cannot collide on identical story slugs.
+
+A story whose dependency setup fails reports **`infrastructure-failed`**, not `failed`. The distinction matters: `failed` means the story's code did not work, and reusing it for a failed install sends someone hunting a bug that does not exist.
+
+See [ADR-0008](docs/adrs/0008-worktree-dependency-provisioning.md) for the reasoning.
 
 ### Schemas at `lib/workflows/schemas/`
 
