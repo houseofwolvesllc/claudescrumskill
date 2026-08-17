@@ -10,7 +10,7 @@
 Run first; all must pass:
 
 ```bash
-npm test           # node --test — 65 checks
+npm test           # node --test — every unit suite green
 ```
 
 - **E1** `normalize_args.test.mjs` — the string/object fail-loud contract.
@@ -79,12 +79,14 @@ the between-story reset has tracked changes to handle.
 Record the returned `SprintStoryReturn[]`, the `log(...)` lines, and the scratch
 repo's final `git status`/`git log` for each.
 
-1. **Auto → serial-in-tree, whole batch.** Invoke with `isolationStrategy`
-   omitted. **Expect:** a `log` `Isolation strategy: serial-in-tree (source=auto,
-   git ls-files node_modules: empty)`; stories run **one at a time** in
-   topological order with `blocker` **before** `dependent` (no deadlock); all four
-   return `status: "done"`; `node_modules/.marker/keep` still present at the end
-   (reset preserved it); no `dist/` or stray files left between stories.
+1. **Auto → worktree over untracked deps.** Invoke with `isolationStrategy`
+   omitted. The scratch repo's `node_modules` is untracked, but its main tree is
+   resolvable, so a fresh worktree can be provisioned and the gate says so.
+   **Expect:** a `log` `Isolation strategy: worktree (source=auto, git ls-files
+   node_modules: empty)` followed by a `Dependency strategy: clone …` (or
+   `install …` if the scratch repo carries a `pnpm-lock.yaml`) outcome line;
+   stories run **concurrently** in isolated worktrees, each carrying the
+   provisioning instruction; all four return `status: "done"`.
 
 2. **Dirty-tree carryover (F7b).** Before re-running, leave a conflicting
    uncommitted change and an untracked non-ignored scratch file (e.g. `stray.tmp`)
@@ -97,13 +99,17 @@ repo's final `git status`/`git log` for each.
    story aborts on a dirty checkout.
 
 3. **Forced `isolationStrategy: "serial-in-tree"`.** **Expect:** `log`
-   `... (source=override, ...)`; behaves as scenario 1.
+   `... (source=override, ...)`; stories run **one at a time** in topological
+   order with `blocker` **before** `dependent` (no deadlock); all four return
+   `status: "done"`; `node_modules/.marker/keep` still present at the end (reset
+   preserved it); no `dist/` or stray files left between stories.
 
-4. **Forced `isolationStrategy: "worktree"` on untracked deps (foot-gun).**
-   **Expect:** the prominent `WARNING: isolationStrategy override forces
-   'worktree' but node_modules appears untracked …` line, then the run
-   **proceeds** (warn-and-proceed) using worktree isolation. (Builds needing deps
-   may fail — that is the operator's declared risk.)
+4. **Forced `isolationStrategy: "worktree"` with `dependencyStrategy:
+   "assume-present"` on untracked deps (foot-gun).** **Expect:** the prominent
+   `WARNING: isolationStrategy override forces 'worktree' with
+   dependencyStrategy=assume-present over untracked node_modules …` line, then
+   the run **proceeds** (warn-and-proceed) using worktree isolation. (Builds
+   needing deps may fail — that is the operator's declared risk.)
 
 5. **Simulated detector throw / non-git.** Point the run at a **non-git**
    directory (or otherwise make `git ls-files node_modules` error). **Expect:**
