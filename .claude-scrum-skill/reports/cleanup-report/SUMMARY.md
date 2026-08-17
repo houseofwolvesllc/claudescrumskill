@@ -1,74 +1,88 @@
 # Project Cleanup Report
 
-**Date:** 2026-05-30
-**Scope:** full project (claude-scrum-skill v2.0.0)
+**Date:** 2026-08-07
+**Scope:** full project (claude-scrum-skill, post Opus 5 retune)
 **Mode:** fix
-**CLAUDE.md Overrides:** The project's `.claude/CLAUDE.md` defines architectural standards (TypeScript strict, snake_case file naming, dependency inversion, etc.) that target **projects consuming the skill suite**, not the skill suite itself. The suite is markdown + JSON Schemas + a new JavaScript workflow layer + a small Node.js install script. CLAUDE.md principles do not apply to its own source layout.
+**CLAUDE.md Overrides:** `.claude/CLAUDE.md` declares the project's own standards
+(no dead code, no commented-out code, no TODO debt, every abstraction earned).
+Those governed Phase 3 and Phase 4 rather than generic defaults.
 
 ## Results
 
 | Phase | Status | Issues Found | Issues Fixed |
 |-------|--------|--------------|--------------|
-| Build | SKIP | N/A — no build system | N/A |
-| Lint | SKIP | N/A — no lint config | N/A |
-| Project Principles | SKIP | N/A — CLAUDE.md principles target consumer projects | N/A |
-| Dead/Duplicated Code | PASS | 0 dead, 0 duplicated | 0 |
-| Tests | SKIP | N/A — no test framework | N/A |
-| **Overall** | **PASS** | **0** | **0** |
+| Build | SKIP | — | — |
+| Lint | SKIP | — | — |
+| Project Principles | PASS | 0 | 0 |
+| Dead/Duplicated Code | PASS | 0 | 0 |
+| Tests | PASS | 0 failing (121/121) | 0 |
+| Documentation accuracy | FAIL → PASS | 1 | 1 |
+| **Overall** | **PASS** | **1** | **1** |
 
-## Discovery
+## SKIP rationale
 
-Project shape after v2.0.0 hardening:
+This is a markdown-and-Node skill suite. `package.json` declares exactly two
+scripts — `postinstall` and `test` — and zero dependencies and zero
+devDependencies.
 
-- 8 skill directories under `skills/`, each containing a `SKILL.md` (markdown).
-- `skills/shared/` with `config.json`, references, templates.
-- **`lib/workflows/`** (new in v2.0.0) — 4 workflow scripts (JavaScript ES2024) + 8 JSON Schemas under `schemas/`.
-- `bin/install.js` — Node.js postinstall, updated in v2.0.0 to copy `lib/workflows/` to `<install-dir>/_workflows/`.
-- `.claude-plugin/` — Claude Code plugin manifest.
-- `package.json` — npm metadata, version `2.0.0`, `files` field includes `lib/`.
-- `docs/` and root markdown.
-- `.github/workflows/publish.yml` — npm publish workflow.
-- `docs/adrs/0001-...md`, `0002-...md`, `0003-...md` — three accepted ADRs.
-- `docs/specs/_fixtures/` — verification fixtures (small_prd, large_prd, workflow_invocation_check).
+- **Build: SKIP.** No compiler, bundler, or type-checker. No `tsconfig.json`,
+  no build script. There is nothing to compile.
+- **Lint: SKIP.** No ESLint, Biome, Prettier, or equivalent config exists.
+  Adding one to satisfy the phase would introduce a dependency the project has
+  deliberately avoided.
+- **Coverage: SKIP.** No coverage tooling (`node --test` is the whole runner).
+  The 50% target is unmeasurable here; test *pass* status is reported instead.
 
-This orchestration added: ~600 lines of new JavaScript (4 workflow scripts), ~250 lines of JSON Schemas (8 files inlined for $ref-resolution clarity), new SKILL.md sections (Phase 5.5 in emulate and cleanup; Workflow-tool-availability check in orchestrate; Path Resolution Algorithm documentation in orchestrate + scaffold), CHANGELOG [2.0.0], ADR-0003.
+Per the run instructions, `npm install` and the `postinstall` hook were not run:
+`bin/install.js` writes into a `.claude/skills` tree, and executing it would
+overwrite the derived install that is intentionally one sprint behind source.
 
-## Phase Details
+## Phase 3 — Project Principles
 
-### Phase 1: Build Verification — SKIP
+Checked the changed surface (44 files, `opus-4-8..development`) against
+`.claude/CLAUDE.md`:
 
-No build system. Even with JavaScript now in scope, the workflow scripts are interpreted at runtime by the Workflow tool — not transpiled or bundled.
+- No dead code, no commented-out code, no TODO/FIXME debt introduced.
+- Every abstraction earned: `resolve_agent_tier.mjs` is 4 functions and 0
+  classes — a constant map plus a pure resolver, consistent with the
+  Arbitration Rule it was written under.
+- Naming and file-layout conventions match the existing `_shared/` modules.
 
-### Phase 2: Lint Verification — SKIP
+## Phase 4 — Dead and Duplicated Code
 
-No lint config. JavaScript files are checked-in as-shipped. Future enhancement candidate: add ESLint with a minimal config tuned for the Workflow tool's `agent()`/`parallel()`/`pipeline()` primitives (treat them as ambient globals).
+- `review_panel.js` deletion is complete: zero references in `skills/`, `lib/`,
+  `test/`, or `bin/`. Remaining matches live only in `.claude-scrum-skill/backlog`,
+  `.claude-scrum-skill/reports`, `docs/specs`, and `docs/adrs` — point-in-time
+  records, correctly left untouched.
+- Zero unused dependencies (the project has none).
+- The `_shared/*.mjs` → workflow-script inlining is **by design**, not
+  duplication: the Workflow runtime cannot import across files. `inline_sync.test.mjs`
+  holds the copies in sync. Not flagged, not "fixed".
+- Workflow inventory is machine-enforced bidirectionally by
+  `test/workflow_references.test.js`.
 
-### Phase 3: Project Principles Compliance — SKIP
+## Phase 5 — Tests
 
-CLAUDE.md targets consumer projects, not the suite's own markdown+JS source.
+121 tests, 121 pass, 0 fail. Up from 67 at the `opus-4-8` baseline: this run
+added 54 tests, most of them guards that make the retune's invariants
+enforceable rather than advisory.
 
-### Phase 4: Dead and Duplicated Code Detection — PASS
+## Phase 5.5 — Review Panel
 
-Cross-reference checks:
+**Not applicable.** The multi-lens panel was removed this run as duplicated
+verification; `review_panel.js` no longer exists. The installed copy of this
+skill still describes Phase 5.5 because `.claude/skills/` is one sprint behind
+source — resynced after merge.
 
-- `bin/install.js` skill list matches `skills/` directory contents. ✅
-- `bin/install.js` `WORKFLOWS_SOURCE_DIR` resolves to `lib/workflows/` (exists). ✅
-- `package.json` `files`: `.claude-plugin/`, `skills/`, `bin/`, `lib/` — all present. ✅
-- Each skill markdown that references a workflow (`/project-orchestrate` → `sprint_pipeline.js`; `/project-scaffold` → `elaborate_epics.js`; `/project-emulate` → `adversarial_verify.js`; `/project-cleanup` → `review_panel.js`) refers to a workflow that exists at `lib/workflows/`. ✅
-- No skill references the dropped `multi_spec_queue.js` (deleted in hardening run 1). ✅
-- Each schema in `lib/workflows/schemas/` is self-contained (no cross-file `$ref` — hardening pass inlined refs into `$defs`). ✅
-- ADR-0003 references resolve to existing files (workflow scripts, schemas, spec, source spec). ✅
+## Issue found and fixed
 
-**Duplicated content:**
-
-- `.claude/skills/` mirrors `skills/` for the developer's local Claude Code. Documented install pattern, not duplication. ✅
-- `EpicSchema.json` and `SpecSchema.json` both define the Epic shape inline under `$defs`. This IS duplication but intentional — each schema is self-contained for $ref-resolution safety. The cost is small (8 properties) and the safety win is meaningful. Documented in run-2 emulation report. ✅
-
-No dead code. No problematic duplication. Phase PASS.
-
-### Phase 5: Test Verification and Coverage — SKIP
-
-No automated test framework. JavaScript joined the package in v2.0.0; future hardening candidate is to add `vitest` + minimal unit tests for each workflow script (mock the Workflow tool primitives, assert on the structure of constructed prompts and the workflow's return shape). Tracked in emulation report as I3.
+**CHANGELOG `Unreleased` documented only Sprint 1.** The three
+verification-deduplication changes were recorded in full, but agent tiering, the
+`ultrathink` removal, the `ENGINEERING_BASELINE` reduction, the scaffolding
+audit, and the installer fix were all absent — four sprints of work, one sprint
+documented. Added `Added`, `Changed`, and `Fixed` sections covering the
+remaining three sprints, and moved the `ultrathink` removal into `Removed`,
+preserving Keep a Changelog section ordering.
 
 ## Critical Issues
 
@@ -76,9 +90,7 @@ None.
 
 ## Recommendations
 
-The codebase is clean. No cleanup fixes were needed in this run. Forward-looking work items (tracked in emulation report; out of scope for v2.0.0):
-
-1. Add `vitest` + ESLint as devDependencies. Stand up unit tests for each workflow script.
-2. Add `markdownlint-cli2` for SKILL.md / README / CHANGELOG validation.
-3. Address NFR-6 (`/project-orchestrate/SKILL.md` line reduction) via a focused trimming pass on reference material that's now better expressed in workflow code.
-4. Audit the `/spec` vs `/project-spec` naming inconsistency.
+- Resync `.claude/skills/` from source after merge; it is deliberately stale
+  for the duration of the run and would otherwise ship the pre-retune skills.
+- A coverage tool would make the 50% gate meaningful, but adding one conflicts
+  with the project's zero-dependency stance. Left as the user's call.

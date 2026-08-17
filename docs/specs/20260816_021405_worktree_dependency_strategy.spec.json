@@ -1,0 +1,188 @@
+{
+  "title": "Worktree Dependency Strategy",
+  "overview": "sprint_pipeline.js already supports parallel story execution — worktree mode runs stories concurrently up to min(16, cores-2), each in its own git worktree, with per-story merges serialized behind a lock. It is almost never reached, because classifyIsolationStrategy selects worktree mode only when node_modules is vendored into git: git worktree add materializes tracked files only, so an untracked node_modules leaves every worktree dependency-empty. The gate asks whether dependencies are already tracked when it should ask whether the worktree can obtain them. This spec adds a dependencyStrategy argument (assume-present, clone, install, symlink), makes the choice story-aware by escalating to a validating clean install for stories that touch package.json or a lockfile, rewrites the gate to select worktree mode whenever a viable strategy exists, and adds the safety work parallel runs require: disk-aware concurrency bounds, infrastructure-versus-code failure classification, and per-epic story branch namespacing.",
+  "objectives": {
+    "primary": [
+      "Make worktree mode reachable on a repo with untracked node_modules",
+      "Give each worktree its dependencies by a strategy chosen for the batch, not assumed",
+      "Validate dependency correctness where it matters — stories that change dependencies"
+    ],
+    "secondary": [
+      "Bound fan-out by disk as well as cores",
+      "Separate infrastructure failure from code failure in story outcomes",
+      "Remove the story-branch namespace collision that concurrent runs already hit"
+    ]
+  },
+  "epics": [
+    {
+      "name": "Dependency Provisioning",
+      "slug": "dependency-provisioning",
+      "description": "How a fresh worktree obtains its dependency directory. Four strategies with different preconditions, costs, and refusal conditions: assume-present (today's behaviour), clone (copy-on-write, fast and isolated but non-validating), install (slow, disk-hungry, and the only validating option), and symlink (fastest, but shared mutable state). The choice is story-aware: clone by default, escalating to install for any story that touches package.json or a lockfile, so clean-install validation lands exactly where dependency correctness is at stake. The isolation gate is rewritten to select worktree mode whenever a viable strategy exists rather than only when node_modules is tracked.",
+      "subdomain": "core",
+      "depends_on": [],
+      "shared_design_concerns": [
+        "Fail loud, never silently degrade: every substitution is logged with its reason",
+        "clone must fall back to install when the filesystem has no copy-on-write support, never to a silent expensive copy",
+        "symlink must refuse a batch containing a dependency-touching story rather than downgrading, because a caller who asked for symlink and got something else has wrong information about their run",
+        "Backward compatible: a caller passing no dependencyStrategy behaves exactly as today",
+        "Any new _shared/ module is inlined into the consuming scripts per the inline_manifest convention",
+        "Do not pin model IDs; do not add verification or double-check phrasing"
+      ],
+      "stories": [
+        {
+          "title": "Add the dependencyStrategy argument and its four strategies",
+          "slug": "add-dependency-strategy-argument",
+          "acceptance_criteria": [
+            "sprint_pipeline.js accepts a dependencyStrategy argument with values assume-present, clone, install, and symlink",
+            "assume-present is the default and reproduces current behaviour exactly",
+            "clone performs a copy-on-write clone of the dependency directory into the worktree",
+            "install runs the project's clean-install command in the worktree",
+            "symlink links the worktree's dependency directory to the main tree's",
+            "Each strategy's outcome is logged, naming the strategy used",
+            "Unit tests cover each strategy's resolution and its preconditions"
+          ],
+          "technical_context": "The strategies differ along a known, closed axis, which is why the spec's pattern pass named a candidate Strategy — non-binding: if the four collapse to a dispatch table plus four small functions, that is the right answer and the pattern was a hypothesis that did not survive. The Arbitration Rule governs. On darwin/APFS the clone mechanism is `cp -c -R`; measured at 5ms for a 200MB tree versus 59ms for a real copy, and the gap widens on node_modules because clonefile is metadata-only while cp -R pays per file.",
+          "points": 5,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl"
+        },
+        {
+          "title": "Refuse unsafe strategies rather than silently degrading",
+          "slug": "refuse-unsafe-strategies",
+          "acceptance_criteria": [
+            "clone falls back to install when the filesystem has no copy-on-write support, and logs the substitution",
+            "clone never performs a real recursive copy as a fallback",
+            "symlink fails loud when any story in the batch is identified as touching package.json or a lockfile",
+            "The symlink refusal names the offending story",
+            "symlink does not downgrade to another strategy on refusal",
+            "Unit tests cover both refusal paths"
+          ],
+          "technical_context": "A symlinked dependency directory is shared mutable state across concurrent stories: one story running an install corrupts its siblings mid-run. A real recursive copy of node_modules is precisely the expense clone exists to avoid, so falling back to it would defeat the strategy silently. Both refusals are correctness properties, not conveniences.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl",
+          "blocked_by": ["add-dependency-strategy-argument"]
+        },
+        {
+          "title": "Escalate to a validating install for dependency-touching stories",
+          "slug": "escalate-for-dependency-stories",
+          "acceptance_criteria": [
+            "A story identified as touching package.json or a lockfile uses install even when the batch default is clone",
+            "Detection runs before the story, from its technical_context and acceptance_criteria",
+            "A story that adds a dependency without updating the lockfile fails under install",
+            "Where cheap, a post-hoc reconciliation from git diff --name-only reports a story that touched dependency files without having been escalated",
+            "The post-hoc mismatch is reported, not silently corrected",
+            "Unit tests cover escalation, non-escalation, and the reconciliation report"
+          ],
+          "technical_context": "This is the hybrid that motivates the whole spec: clone speed for the roughly 90% of stories that never touch dependencies, clean-install validation for the ones that do. Under clone or symlink a missing lockfile update passes silently and breaks CI later; under install it fails during the story. Reporting the post-hoc mismatch rather than fixing it silently is deliberate — a silent correction hides a detection gap that will recur.",
+          "points": 5,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl",
+          "blocked_by": ["add-dependency-strategy-argument"]
+        },
+        {
+          "title": "Rewrite the isolation gate and detect the package manager",
+          "slug": "rewrite-gate-and-detect-package-manager",
+          "acceptance_criteria": [
+            "classifyIsolationStrategy selects worktree mode when a viable dependencyStrategy exists",
+            "It falls back to serial-in-tree only when no viable strategy exists",
+            "A repo with untracked node_modules runs stories in parallel worktrees",
+            "The existing isolationStrategy override semantics are preserved, including the forced-worktree warning, reworded for the assume-present case",
+            "The package manager is resolved from the lockfile present: npm, pnpm, yarn, or bun",
+            "On a pnpm project the resolver prefers install over clone",
+            "Unit tests cover gate selection across tracked/untracked, filesystem support, and each package manager"
+          ],
+          "technical_context": "lib/workflows/_shared/detect_repo_layout.mjs currently returns SERIAL_IN_TREE whenever `git ls-files node_modules` is empty. pnpm's content-addressable store already makes per-worktree installs cheap, so the cost tradeoff this spec manages does not apply there and install is simply better.",
+          "points": 5,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl",
+          "blocked_by": ["refuse-unsafe-strategies", "escalate-for-dependency-stories"]
+        }
+      ]
+    },
+    {
+      "name": "Parallel Run Safety",
+      "slug": "parallel-run-safety",
+      "description": "The safety work true parallelism requires, independent of how dependencies arrive. Bound fan-out by available disk rather than cores alone, since sixteen worktrees times a large dependency tree is many gigabytes of transient disk. Report a worktree that failed to set up as an infrastructure failure rather than a code failure, so nobody hunts a phantom bug. And namespace story branches per epic, closing a collision that concurrent runs in this repo already hit.",
+      "subdomain": "supporting",
+      "depends_on": [],
+      "shared_design_concerns": [
+        "Log which constraint bound the run so a slow run is diagnosable rather than mysterious",
+        "Cloned and installed dependency directories are transient; worktree teardown must reclaim them",
+        "Do not change the merge serialization lock"
+      ],
+      "stories": [
+        {
+          "title": "Bound concurrency by available disk as well as cores",
+          "slug": "bound-concurrency-by-disk",
+          "acceptance_criteria": [
+            "Worktree fan-out is bounded by available disk in addition to the existing min(16, cores-2)",
+            "A full fan-out cannot exhaust the volume",
+            "The binding constraint (cores or disk) is logged for each run",
+            "Unit tests cover disk-bound, core-bound, and the cap interaction"
+          ],
+          "technical_context": "The existing cap is min(16, cores - 2). Sixteen worktrees times a large node_modules is many GB. Logging which constraint bound the run turns an unexplained slow run into a diagnosable one.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P2-medium",
+          "persona": "ops"
+        },
+        {
+          "title": "Report dependency setup failure as infrastructure, not code failure",
+          "slug": "classify-infrastructure-failure",
+          "acceptance_criteria": [
+            "A worktree whose dependency setup fails reports an outcome distinct from status: failed",
+            "The distinct outcome is documented in the return schema and in the invoking SKILL.md",
+            "The failure message names the strategy that failed and why",
+            "A code failure still reports status: failed unchanged",
+            "Unit tests cover both failure classes"
+          ],
+          "technical_context": "Today status: failed means the story's code did not work. Reusing it for a failed install sends someone hunting a phantom bug — that is the failure mode to design out. SprintStoryReturnSchema currently allows done, blocked, and failed.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P2-medium",
+          "persona": "impl"
+        },
+        {
+          "title": "Namespace story branches per epic",
+          "slug": "namespace-story-branches-per-epic",
+          "acceptance_criteria": [
+            "Story branches are named story/<epic-slug>/<story-slug>",
+            "Every place a story branch is constructed, matched, or cleaned up is updated",
+            "Two batches from different epics with identical story slugs no longer collide",
+            "A structural test asserts no story branch is constructed without its epic prefix"
+          ],
+          "technical_context": "Not hypothetical: two concurrent runs in this repo both wanted story/document-credential-resolution, and afterwards the ref pointed at whichever finished last. The collision was found by a contaminated measurement rather than by a test, which is why the acceptance criteria include a structural guard.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P2-medium",
+          "persona": "impl"
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    "Claude Code Workflow tool available in-session",
+    "Skills installed at .claude/skills/ including _workflows/ and _guidance/",
+    "Node.js test runner",
+    "git worktree support",
+    "Builds on v2.3.0 (tag claude-opus-5-0)"
+  ],
+  "design_concerns": [
+    "The isolation gate asks whether dependencies are already tracked when it should ask whether the worktree can obtain them; that reframing is the whole spec",
+    "Install cost is paid once in parallel while serial-in-tree cost is paid sequentially per story, which is why per-worktree installs pay for themselves despite minutes and gigabytes each",
+    "clone is fast and isolated but does not validate: it inherits the parent tree's dependency directory, which may not equal a clean install. Only install validates",
+    "Concurrent installs contend for I/O and scale sublinearly on one disk, though a shared package cache makes most reads local after the first. Parallel-but-sublinear still beats sequential",
+    "Monorepo workspace hoisting means a per-worktree install is the whole tree and a clone is all-or-nothing; detect workspaces and record as a known limitation rather than solving it here",
+    "The shared .claude-scrum-skill state directory lives outside all worktrees and is written by every arm — the next contention point under true parallelism, out of scope here",
+    "Undeclared file overlap between stories still merge-conflicts at fan-in, since blocked_by covers declared dependencies only; the serialized merge surfaces the conflict rather than corrupting",
+    "Cross-epic parallelism (concurrent release branches fanning into development) is explicitly out of scope and belongs in its own spec",
+    "This repo has zero dependencies, so no install cost could be measured here; the wall-clock figures are extrapolations from a measured 3-story serial run"
+  ],
+  "scaffold_mode": "single-pass",
+  "design_spike": false
+}

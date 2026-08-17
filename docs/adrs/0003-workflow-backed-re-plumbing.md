@@ -119,3 +119,30 @@ Ship `@houseofwolvesllc/claude-scrum-skill-workflows` separately. Rejected becau
 - Schemas: `lib/workflows/schemas/*.json` (8 files).
 - Modified shared: `bin/install.js` (copies lib/workflows), `package.json` (files field), `README.md` (Architecture section + v2.0.0 runtime callout).
 - Released as: npm v2.0.0.
+
+## Amendment (2026-08-07): `review_panel.js` is withdrawn
+
+§Decision listed `review_panel.js` among the five workflow scripts and described
+multi-lens review — correctness, security, style, tests in parallel with
+aggregated verdicts — as a benefit of the re-plumbing. That reasoning held on
+Claude Opus 4.6/4.8, where a second independent pass surfaced concerns the
+single per-story review missed.
+
+It does not hold on Opus 5, which self-verifies unprompted. The panel ran four
+agents over the same diff the per-story review agent in `sprint_pipeline.js` had
+already covered, and produced no coverage the first pass lacked — a second full
+pass at full price. `review_panel.js` is deleted, `/project-cleanup` Phase 5.5 is
+removed, and the security lens's focus (injection sinks, missing authentication,
+broken authorization, secret exposure, unvalidated input reaching dangerous APIs,
+unjustified permission expansion) is folded into the surviving per-story review
+prompt, which has the advantage of running while story context is still live.
+
+The rest of this ADR stands: the workflow-backed re-plumbing, the schema-validated
+returns, and the remaining scripts are unaffected. See ADR-0007 for the full
+reasoning and for the general principle that the prompt surface is coupled to a
+model generation.
+
+Note for future readers: the References list below has been non-current since
+acceptance — it names `multi_spec_queue.js`, which was never built (§Decision
+itself explains why, citing the Workflow tool's one-level nesting constraint).
+Treat that list as a record of intent at the time, not an inventory.

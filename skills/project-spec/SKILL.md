@@ -5,7 +5,7 @@ description: Transform a rough prompt into a comprehensive specification documen
 
 # Spec Sheet Creator
 
-This skill takes a user's rough prompt and transforms it into a comprehensive specification document following best practices for Claude Code development. ultrathink
+This skill takes a user's rough prompt and transforms it into a comprehensive specification document following best practices for Claude Code development.
 
 ## Input
 

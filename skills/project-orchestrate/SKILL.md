@@ -374,9 +374,7 @@ Invoke the `/sprint-plan` skill:
 story whose `blocked_by` list contains an open (not yet `done`) story. This
 naturally gates implementation epics on the design-spike epic when one
 exists: implementation stories list the design-spike CONTEXT.md story as a
-blocker, so they cannot enter a sprint until that story completes. The
-existing dependency mechanism in `/sprint-plan` already honors this; this
-note is an explicit affirmation, not a new requirement.
+blocker, so they cannot enter a sprint until that story completes.
 
 Since this is autonomous mode, accept the default sprint plan without waiting for user confirmation — the skill's proposed sprint based on priority ordering and velocity target is the plan.
 
@@ -414,6 +412,10 @@ personaPreambles:   { impl: "...", ops: "...", research: "..." }
 baselinePath:       <absolute path to shared/references/ENGINEERING_BASELINE.md> (always set; applies to every story)
 situationalGuidance: <the two guidance SKILL.md paths from the non-registered _guidance/ directory — `<skills-root>/_guidance/design-patterns/SKILL.md` and `<skills-root>/_guidance/domain-modeling/SKILL.md` (resolve `<skills-root>` per Step 3b) — set ONLY when the current epic's subdomain is `core`; omit or pass [] for supporting/generic/untagged epics>
 isolationStrategy:  <optional 'auto' | 'worktree' | 'serial-in-tree'; default 'auto'. Omit it and existing callers behave unchanged. 'auto' lets the pipeline detect whether `node_modules` is tracked (→ worktree-safe) or untracked (→ serial-in-tree, the common case). A concrete value forces that strategy; forcing 'worktree' on untracked `node_modules` logs a prominent warning and proceeds (deps must already exist in each worktree or builds fail). No env-var equivalent.>
+sessionModel:       <optional 'haiku' | 'sonnet' | 'opus' — the tier you are running as.
+                     Fill in your own tier, the same way you fill in every other argument
+                     here. Stages defined relative to the session (review) resolve only
+                     when this is set; omit it and they inherit the session tier silently.>
 ```
 
 Wait for the workflow to return. The return is `SprintStoryReturn[]` — one entry per completed (or blocked / failed) story per `lib/workflows/schemas/SprintStoryReturnSchema.json`.
@@ -726,7 +728,6 @@ full-project emulation.
 **Story Points:** <estimate based on scope>
 **Acceptance Criteria:**
 - <derived from the issue description>
-- Verify fix by re-checking the specific integration seam / layer contract / workflow
 
 #### Fix: <next issue>
 ...
@@ -746,7 +747,7 @@ This creates the milestone, issues, labels, and branches for the hardening work.
 
 ### Step 12: Execute Hardening Sprints
 
-Run the same sprint loop as Phase 1 (Steps 2-7) for the hardening epic. Since hardening stories are typically all `executor:claude`, this should proceed fully autonomously.
+Run the same sprint loop as Phase 1 (Steps 2-7) for the hardening epic.
 
 ### Step 13: Re-validate
 
@@ -794,7 +795,7 @@ Invoke the cleanup skill in fix mode:
 This runs across the **entire codebase** and automatically fixes:
 - Build errors and warnings (type errors, unused variables, deprecations)
 - Lint violations (ESLint/Biome/etc. with `--max-warnings 0`)
-- HATEOAS compliance gaps (missing `_links`, pagination links, consistency)
+- Violations of the architectural principles the project's `CLAUDE.md` declares
 - Dead and duplicated code (unused exports, files, dependencies, commented-out code)
 - Failing tests and coverage gaps (targets 50% minimum across all metrics)
 
@@ -916,7 +917,7 @@ The per-spec loop is **executed by the skill markdown** (not a wrapping workflow
 For each spec in the topologically-sorted execution order:
 
 1. Update the queue state file: mark this spec's row as `in-progress`, record `Started` timestamp.
-2. Invoke the full single-spec orchestration against this spec — re-enter Phase 1 (Epic Completion Loop, including scaffolding via `/project-scaffold`), Phase 2 (Emulation Hardening Loop), Phase 3 (Project Cleanup), Step 16 (ADR Update). Each of these phases internally invokes workflows (`sprint_pipeline.js`, `elaborate_epics.js`, `adversarial_verify.js`, `review_panel.js`) as documented in their respective sections. Step 17 (state file cleanup) is **suppressed** in multi-path mode; archive instead with the slug-suffixed naming below.
+2. Invoke the full single-spec orchestration against this spec — re-enter Phase 1 (Epic Completion Loop, including scaffolding via `/project-scaffold`), Phase 2 (Emulation Hardening Loop), Phase 3 (Project Cleanup), Step 16 (ADR Update). Each of these phases internally invokes workflows (`sprint_pipeline.js`, `elaborate_epics.js`, `adversarial_verify.js`) as documented in their respective sections. Step 17 (state file cleanup) is **suppressed** in multi-path mode; archive instead with the slug-suffixed naming below.
 3. On the spec's natural completion: archive `.claude-scrum-skill/orchestration-state.md` to `.claude-scrum-skill/orchestration-state-<spec-slug>.previous.md` BEFORE the next spec begins. Update the queue state file: mark this spec's row as `completed`, record `Completed` timestamp, update aggregate stats.
 4. On the spec's safety-gate pause:
    - **Without `--skip-on-pause`** (default): per-spec state file remains at `.claude-scrum-skill/orchestration-state.md` with `Status: paused`. Update the queue state file: mark this spec's row as `paused`, set queue `Status: paused`. Exit. Remaining specs are NOT started. User resolves the gate and re-invokes; queue resumes from the paused spec.
@@ -1137,7 +1138,7 @@ Keep the user informed without being noisy:
 | Cleanup started | Single line: "Running project cleanup..." |
 | Cleanup complete | Phase 3 summary — 5-6 lines with pass/fail per dimension |
 | ADRs updated | Count of new ADRs + titles — 2-3 lines |
-| Orchestration complete | Full completion summary (Step 17) |
+| Orchestration complete | Full completion summary (Step 15) |
 | Error/pause | Immediate alert with context and options |
 
 ---

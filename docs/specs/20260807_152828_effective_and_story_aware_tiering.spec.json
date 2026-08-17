@@ -1,0 +1,147 @@
+{
+  "title": "Effective and Story-Aware Agent Tiering",
+  "overview": "The Opus 5 retune added a stage-to-tier resolver that assigns each agent stage a (model, effort) pair. A smoke test proved the runtime accepts the resolver's bare 'haiku' model string, but exposed two gaps. First, the relative tiers are inert: ONE_TIER_DOWN needs sessionModel, which is an optional workflow argument that appears zero times in the invoking SKILL.md files, so it resolves to silent inheritance — the exact defect the tiering epic existed to eliminate, reintroduced in the contract rather than at the call sites. adversarial_verify is fully inert because both its stages are relative. Second, tiering is per-stage only and never per-story: a 1-point README edit and a 13-point core-domain story both get the session model for implement, even though every story already carries points, priority, and persona. This spec puts sessionModel in the invocation contract, adds story difficulty as a second dimension floored so bad estimates degrade gently, and guards resolution rather than mere declaration.",
+  "objectives": {
+    "primary": [
+      "Make the relative tiers actually resolve by putting sessionModel in the invocation contract",
+      "Add story difficulty as a second tiering dimension, floored so a bad estimate degrades gently",
+      "Guard resolution rather than declaration, so the silent-inherit regression is catchable"
+    ],
+    "secondary": [
+      "Preserve the safe-inherit fallback so existing callers keep working unchanged"
+    ]
+  },
+  "epics": [
+    {
+      "name": "Tier Contract Plumbing",
+      "slug": "tier-contract-plumbing",
+      "description": "sessionModel is an optional workflow argument that no caller passes, because it appears in none of the invoking SKILL.md files. Every stage defined relative to the session therefore inherits it silently. Put sessionModel in the invocation contract of each skill that invokes a workflow with relative tiers, and add the guard that makes the omission catchable rather than invisible.",
+      "subdomain": "supporting",
+      "depends_on": [],
+      "shared_design_concerns": [
+        "sessionModel must remain OPTIONAL — its absence is a safe inherit, never a throw, so existing callers keep working",
+        "Do not attempt programmatic model introspection; the orchestrator supplies every other argument in that block the same way",
+        "Do not pin full model IDs — short tier names only"
+      ],
+      "stories": [
+        {
+          "title": "Add sessionModel to the workflow invocation contracts",
+          "slug": "add-session-model-to-contracts",
+          "acceptance_criteria": [
+            "skills/project-orchestrate/SKILL.md documents sessionModel in the sprint_pipeline invocation block",
+            "skills/project-emulate/SKILL.md documents sessionModel in the adversarial_verify invocation block",
+            "skills/project-scaffold/SKILL.md documents sessionModel in the elaborate_epics invocation block",
+            "Each contract line names the accepted values and states that omitting it makes relative stages inherit the session tier silently",
+            "The argument remains optional in all three contracts"
+          ],
+          "technical_context": "The invocation blocks are YAML fences in each SKILL.md listing the args the orchestrator fills in (epicSlug, backendMode, baselinePath, isolationStrategy, and so on). sessionModel joins them. Relative stages by workflow: sprint_pipeline has review; adversarial_verify has skeptic and judge and is therefore fully inert without it; elaborate_epics has none but takes the argument for consistency. Do not introspect the model programmatically — there is no such API.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl"
+        },
+        {
+          "title": "Guard that relative stages resolve to a distinct model",
+          "slug": "guard-relative-tier-resolution",
+          "acceptance_criteria": [
+            "A test asserts that with a known sessionModel, every relative stage resolves to a model distinct from the session model",
+            "A test asserts that with sessionModel absent, relative stages return a safe inherit rather than throwing",
+            "The failure message names the stage and what it resolved to",
+            "The existing declaration guard in agent_tiers.test.mjs is retained unchanged"
+          ],
+          "technical_context": "agent_tiers.test.mjs asserts every agent() call DECLARES a tier; it cannot catch a declared tier that then resolves to nothing. Both guards are needed and they catch different defects: one a bare call site, the other a call site whose tier evaporates at resolution. Colocate with the existing resolver tests at lib/workflows/_shared/resolve_agent_tier.test.mjs or beside agent_tiers.test.mjs, following house style.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl"
+        }
+      ]
+    },
+    {
+      "name": "Story-Aware Tiering",
+      "slug": "story-aware-tiering",
+      "description": "Tiering asks what kind of work a stage is but never how hard the particular story is. Add story difficulty as a second dimension driven by points, with two overrides that cut against cost for ops and P0-critical work, and a mandatory floor on implement so a mis-estimated story degrades gently rather than being handed to the weakest model. The resolver must stay usable where no story exists.",
+      "subdomain": "core",
+      "depends_on": ["tier-contract-plumbing"],
+      "shared_design_concerns": [
+        "The implement floor is mandatory: never below one-tier-down at any point value, because points is an estimate authored before anyone read the code",
+        "review may floor lower than implement because a weak review is caught by verify and the tests, whereas a weak implementation IS the artifact",
+        "The story argument must be optional — adversarial_verify has findings, not stories, and passes none",
+        "The existing session clamp still applies: no stage resolves above the session model",
+        "The resolver is inlined into three workflow scripts; any signature change must be re-inlined and stay in sync"
+      ],
+      "stories": [
+        {
+          "title": "Make the tier resolver story-aware with a mandatory implement floor",
+          "slug": "make-resolver-story-aware",
+          "acceptance_criteria": [
+            "resolveAgentTier accepts the story being worked, and the story argument is optional",
+            "implement resolves one tier down at 1-5 points and to the session model at 8-13 points",
+            "implement never resolves to the cheapest tier at any point value",
+            "review resolves to cheapest at 1-2 points and one tier down at 3-13 points",
+            "verify resolves to cheapest at every point value",
+            "detect-layout, reset, and pr are unchanged at cheapest; elaborate is unchanged at session",
+            "With no story supplied the resolver falls back to pure stage tiering",
+            "The session clamp still holds: no stage resolves above the session model",
+            "Unit tests cover the full stage x points grid, the implement floor at every point value, and the no-story fallback"
+          ],
+          "technical_context": "lib/workflows/_shared/resolve_agent_tier.mjs. Current signature is resolveAgentTier(stage, sessionModel), inlined identically into sprint_pipeline.js, adversarial_verify.js, and elaborate_epics.js. A two-argument shape such as resolveAgentTier(stage, { sessionModel, story }) extends without churning call sites, but any shape is acceptable provided story is optional. verify moves to always-cheapest because it runs a build/lint/test command and reports a status, which is not a judgment task. Keep this a pure function over constant maps per the Arbitration Rule — no class hierarchy.",
+          "points": 5,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl"
+        },
+        {
+          "title": "Add the ops and P0-critical never-tier-down overrides",
+          "slug": "add-never-tier-down-overrides",
+          "acceptance_criteria": [
+            "A story with persona: ops never tiers down for any stage",
+            "A story with priority: P0-critical never tiers down for any stage",
+            "The overrides compose with the difficulty rules — an ops 1-point story still runs at the session model",
+            "The overrides do not affect stages that were already absolute, such as detect-layout and pr",
+            "Unit tests cover both overrides across several point values and stages"
+          ],
+          "technical_context": "Same reasoning the retune used to keep verification that guards destructive operations: ops stories are migrations, CI, secrets, and IaC, where 'what if this runs twice' makes blast radius beat cost. Two guard clauses, not a rules engine — the spec's pattern pass explicitly declined to name a pattern for two rules.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl",
+          "blocked_by": ["make-resolver-story-aware"]
+        },
+        {
+          "title": "Thread the story through the pipeline call sites and re-inline",
+          "slug": "thread-story-through-call-sites",
+          "acceptance_criteria": [
+            "sprint_pipeline passes the story being worked to resolveAgentTier at the implement, review, and verify call sites",
+            "Stages with no story context continue to resolve correctly",
+            "adversarial_verify and elaborate_epics call sites still work with no story supplied",
+            "All three inlined copies match the canonical module and inline_sync.test.mjs passes",
+            "The full suite passes"
+          ],
+          "technical_context": "The Workflow runtime cannot import across files, so the resolver is inlined into each script and kept in sync by inline_sync.test.mjs via inline_manifest.mjs. A signature change means re-inlining all three copies. sprint_pipeline already has the story object in scope at the per-story call sites; detect-layout and reset are batch-level and have no story.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P2-medium",
+          "persona": "impl",
+          "blocked_by": ["add-never-tier-down-overrides"]
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    "Claude Code Workflow tool available in-session",
+    "Skills installed at .claude/skills/ including _workflows/ and _guidance/",
+    "Node.js test runner",
+    "Builds on spec 20260807_130617 (Opus 5 prompt surface retune), merged to development"
+  ],
+  "design_concerns": [
+    "sessionModel must remain optional; its absence is a safe inherit so existing callers keep working unchanged",
+    "The orchestrator is a model reading markdown and knows its own identity — it supplies sessionModel the same way it supplies every other invocation argument. Programmatic introspection is not available and must not be attempted",
+    "points is an estimate authored before anyone read the code, so tiering on it couples model selection to estimate quality; the implement floor is the mitigation and is mandatory",
+    "Severity-based judge tiering in adversarial_verify is deliberately deferred: the judge's output decides whether a finding survives at all with no downstream check, and severity is self-reported by the emulator with no review step. Revisit by tiering the skeptic first",
+    "No Gang of Four pattern is named — two overrides is not an axis of variation, and the Arbitration Rule keeps this a pure function over constant maps",
+    "The resolver is inlined into three workflow scripts; the inline_sync convention is the constraint on any signature change"
+  ],
+  "scaffold_mode": "single-pass",
+  "design_spike": false
+}

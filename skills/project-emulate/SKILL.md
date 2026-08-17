@@ -507,7 +507,7 @@ Not every project will have all stages. Skip what doesn't apply. Add stages that
 
 ## Phase 5.5: Adversarial Verification of Findings (v2.0.0+)
 
-After Phase 5 produces raw findings and BEFORE the Coverage Report is finalized, invoke the **adversarial_verify.js** workflow script to verify each finding via the claimant / skeptic / judge pattern. This lifts emulation from "trust the emulator" to structured verdicts.
+After Phase 5 produces raw findings and BEFORE the Coverage Report is finalized, invoke the **adversarial_verify.js** workflow script to verify each finding via the skeptic / judge pattern. The finding is its own affirmative case, so only the opposing position is argued; the judge weighs the finding against the skeptic's rebuttal. This lifts emulation from "trust the emulator" to structured verdicts.
 
 #### Path Resolution
 
@@ -520,9 +520,14 @@ Pass the finding list (per `EmulationFindingSchema`) and optional `codebaseConte
 ```yaml
 findings:         [<EmulationFinding>, ...]   # collected during Phases 1-5
 codebaseContext:  { projectRoot: <path>, languages: ["typescript", ...] }
+sessionModel:     <optional 'haiku' | 'sonnet' | 'opus' — the tier you are running as.
+                   Fill in your own tier, the same way you fill in every other argument
+                   here. Both stages of this workflow are defined relative to the session
+                   (skeptic, judge) and resolve only when this is set; omit it and they
+                   inherit the session tier silently.>
 ```
 
-The workflow returns `[{ finding, claim, skeptic, verdict }, ...]` where `verdict.isReal` is a boolean and `verdict.severity_adjustment` may suggest raising/lowering severity.
+The workflow returns `[{ finding, skeptic, verdict }, ...]` where `verdict.isReal` is a boolean and `verdict.severity_adjustment` may suggest raising/lowering severity.
 
 #### Apply the verdicts
 

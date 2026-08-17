@@ -1,52 +1,71 @@
-# Issues — Phase 2 emulation (workflow-execution-robustness)
+# Emulation Issues — Opus 5 Prompt Surface Retune
 
-Supersedes the stale Run-1 report (v2.0.0) previously in this file; the earlier
-run's findings predate the current source. Classification:
-🔴 Critical / 🟡 Warning / 🔵 Info.
+**Date:** 2026-08-07
+**Scope:** full project, post-retune (development @ 68644a5)
+**Baseline:** tag `opus-4-8` @ fb67d42
 
-## 🔴 Critical
+## Summary
 
-None.
+| Severity | Raised | Survived verification |
+|---|---:|---:|
+| 🔴 Critical | 0 | 0 |
+| 🟡 Warning | 2 | **0** |
+| 🔵 Info | 1 | **0** |
 
-## 🟡 Warning
+**No actionable findings.** Three candidates were raised during seam validation and all
+three were refuted by skeptic/judge verification at high confidence. No hardening PRD is
+generated; the run proceeds to Project Cleanup.
 
-None.
+## Seam validation
 
-## 🔵 Info
+| Seam | Result |
+|---|---|
+| `review_panel.js` dangling references in `skills/`, `lib/`, `test/` | clean |
+| `adversarial_verify` return shape vs. SKILL.md contract | agree — `{finding, skeptic, verdict}` |
+| `resolve_agent_tier.mjs` inline sync across 3 scripts | in sync; `sessionModel` threaded in all three |
+| `ENGINEERING_BASELINE.md` referencing sites | resolve and read coherently |
+| Cross-references (Steps 1–17 in project-orchestrate) | every cited step exists |
+| Fixture PRD workflow-exercise list | correctly updated |
+| Install payload contract | no hard-coded workflow counts |
 
-### 🔵 I1 — Script carries two runtime-dead inlined functions (`execGit`-injected)
-`lib/workflows/sprint_pipeline.js:201` (`detectIsolationStrategy`) and
-`:298` (`resetWorktree`) are inlined verbatim from their `_shared` modules but
-are **never called in the runtime** — they take an injected `execGit`
-(undefined in the runtime; used only by the unit tests). They cannot error
-because nothing invokes them, and removing them would break the inline drift
-guard (the block must equal the canonical module). This is an accepted
-consequence of ADR-0006's whole-module inline approach, but a first-time reader
-of the script sees two unused functions referencing an undefined `execGit`.
-Optional future refinement: split the pure runtime logic
-(`classifyIsolationStrategy`, `resetWorktreeCommands`) from the test-only
-`execGit` wrappers so only runtime-live code is inlined. Not required for
-correctness.
+Not applicable to this repo and correctly skipped: Docker/compose seams, build-tool CWD,
+IoC container integrity, cross-service payload contracts, response-format and
+middleware-chain contracts. This is a markdown-and-Node skill suite with no service
+boundaries or DI container.
 
-### 🔵 I2 — Dev-only tooling modules ship in the install payload
-`installWorkflows` (`bin/install.js:121-129`) recursively copies `_shared/`, so
-`_shared/inline_sync.mjs` and `_shared/inline_manifest.mjs`
-(drift-guard/codegen infrastructure, not workflow runtime logic) ship to
-`<skills-root>/_workflows/_shared/` and are imported by the smoke check. They
-are pure and harmless, but are not consumed at runtime (the runtime cannot
-import anything). Minor payload cruft only; flagged against the repo's
-"minimal / no dead code" ethos. Could be excluded via the existing skip
-predicate if desired.
+## Dismissed (false positives)
 
-### 🔵 I3 — `Reset` phase declared but never announced at top level
-`sprint_pipeline.js:47-58` `meta.phases` includes `{ title: 'Reset' }`, and
-`phase('Reset')` is only ever passed as an `agent(...)` option in serial-in-tree
-mode (`:675`) — there is no top-level `phase('Reset')` call the way
-`Implement/Review/Verify/Open PR` get one at `:520-523`. Display-only; no
-functional impact. Noted for consistency.
+### EM-001 — Baseline described by content it no longer restates
+**Verdict:** not real, high confidence.
+Three sites introduce `ENGINEERING_BASELINE.md` with a parenthetical naming Clean Code and
+TDD. The reduction removed those sections. Refuted because every one of those sites states
+the obligations inline in the same sentence — `sprint_pipeline.js:511` continues "Follow it
+for all code: write tests first (red-green-refactor)…", and `project-spec/SKILL.md:51-53`
+continues "The spec must assume this baseline: acceptance criteria assume tests-first…".
+The postulated failure (agent concludes guidance is missing) cannot produce a behavioral
+delta when the guidance is in the same prompt line. The file's own header explains the
+absence. Additionally `test/engineering_baseline.test.js` fails the build if the canon is
+restated, so the implied remedy is prohibited by a passing test.
 
-## Notes on N/A emulation categories
-Auth/RBAC, HTTP endpoints, DB/query isolation, IoC wiring, Docker/deploy,
-cross-service contracts — **N/A**: this package has none of those surfaces.
-They were not emulated and no findings were invented for them.
-</content>
+### EM-002 — ADR-0003 documents the deleted `review_panel.js`
+**Verdict:** not real, high confidence.
+Refuted on two grounds. First, ADR-0003's reference list has been non-current since
+acceptance — it lists `multi_spec_queue.js`, which never existed, and the same ADR explains
+at line 35 why it was never built. `review_panel.js`'s absence is the same class of dated
+record. Second, the finding's blocker ("ADRs are immutable") is contradicted by project
+precedent: ADR-0006 carries an in-place amendment.
+
+### EM-003 — Stale generated reports assert `review_panel.js` exists
+**Verdict:** not real, high confidence.
+Both artifacts are self-stamped point-in-time records (cleanup report dated 2026-05-30;
+discovery report stamped v2.1.3 on a prior release branch) and were true of the tree they
+describe. The live invariant is machine-enforced by `test/workflow_references.test.js`,
+which asserts bidirectionally that every SKILL.md-invoked workflow ships and every shipped
+workflow is invoked.
+
+## Note on method
+
+All three findings were authored by the orchestrator from static seam analysis, and all
+three were refuted. The verification stage is doing its job: it caught two factual errors
+in the orchestrator's own premises (the test that prohibits EM-001's remedy, and the ADR
+amendment precedent that invalidates EM-002's blocker).

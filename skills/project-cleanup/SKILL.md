@@ -15,7 +15,6 @@ Ensure the codebase is production-clean: builds without errors or warnings, pass
 2. Read `../shared/references/CONVENTIONS.md` for project management standards (if applicable).
 3. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in GitHub API commands and code — never in communication with the user.
 4. Identify the project's language(s), framework(s), build system, linter, test runner, and coverage tool by reading `package.json`, `tsconfig.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, `Makefile`, or equivalent config files.
-5. Confirm all required tooling is installed and runnable (`npm`, `npx`, `tsc`, `eslint`, `jest`/`vitest`/`pytest`/`go test`, etc.).
 
 ---
 
@@ -65,7 +64,7 @@ For each issue found, record:
 |------|------|----------|------|---------|
 | `src/api/handler.ts` | 42 | error | TS2345 | Argument of type 'string' is not assignable... |
 
-If `--fix` is active, fix each issue in order of severity (errors first, then warnings). After fixing, re-run the build to confirm the fix didn't introduce new issues.
+If `--fix` is active, fix each issue in order of severity (errors first, then warnings).
 
 ---
 
@@ -112,7 +111,6 @@ For each issue found, record:
    - **Formatting issues:** Apply the project's formatter (Prettier, Biome, etc.)
    - **Rule violations:** Fix the code to comply with the rule; do NOT add `eslint-disable` comments unless `CLAUDE.md` explicitly allows it
    - **Deprecation warnings:** Update to the recommended replacement
-4. Re-run the linter to confirm zero remaining issues
 
 ---
 
@@ -154,10 +152,7 @@ For each violation found, record:
 | `src/routes/orders.ts` | 45 | Layered architecture | Controller directly queries DB | Route through OrderService |
 | `src/controllers/users.ts` | 78 | HATEOAS (per CLAUDE.md) | Response missing `_links.self` | Add self link to user response |
 
-If `--fix` is active:
-- Fix violations in order of severity (principles the project marks as critical first)
-- Verify fixes don't break existing tests
-- Re-scan to confirm compliance
+If `--fix` is active, fix violations in order of severity (principles the project marks as critical first).
 
 ---
 
@@ -299,36 +294,7 @@ If any metric is below 50%, identify the files and functions most responsible fo
 4. Follow existing test patterns and conventions in the project
 5. Do NOT write trivial tests just to hit the number (e.g., testing that a constant equals itself)
 
-After writing new tests, re-run the full suite to confirm all tests pass and coverage meets the target.
-
 ---
-
-## Phase 5.5: Multi-Lens Review Panel (v2.0.0+)
-
-After fixes are applied (or in `--report-only` mode after the catalog is built) and BEFORE Final Validation, invoke the **review_panel.js** workflow script to run a multi-lens review across the final diff or scoped change set.
-
-#### Path Resolution
-
-Workflow ships at `<skills-root>/_workflows/review_panel.js`.
-
-#### Invocation
-
-```yaml
-diff:                     <git diff against the pre-cleanup baseline>
-files:                    [{ path, contents }, ...]   # for files that lack a pre-baseline (new files)
-lenses:                   ["correctness", "security", "style", "tests"]   # default; override per project
-projectConventionsPath:   <project>/CLAUDE.md         # optional
-```
-
-The workflow returns `{ panelVerdict, perLensVerdicts }`. The panel verdict is aggregated per the workflow's rule (any lens blocks → panel blocks; any accept-with-followups → panel accept-with-followups; else accept).
-
-#### Apply the panel verdict
-
-- `panelVerdict.recommendation === "block"` → record the blocking findings in the cleanup report's Critical section; do NOT proceed to Final Validation; surface the per-lens verdicts to the user.
-- `panelVerdict.recommendation === "accept-with-followups"` → record follow-up findings in the cleanup report; proceed to Final Validation.
-- `panelVerdict.recommendation === "accept"` → proceed to Final Validation.
-
-Per-lens verdicts (with `lens` attribution preserved on each finding) are written verbatim to the cleanup report so users can see which lens raised each concern.
 
 ## Phase 6: Final Validation
 
@@ -344,12 +310,10 @@ Run all checks in sequence and confirm clean results:
 
 ### Step 2: Regression Check
 
-If `--fix` was active, verify that fixes didn't introduce new problems:
+If `--fix` was active, Step 1's clean run already covers build, lint, and test status. Two things it does not cover:
 
 - Run a `git diff --stat` to summarize all changes
-- Verify no test that previously passed is now failing
 - Verify coverage didn't decrease in any file that wasn't touched
-- Verify no new lint or build warnings were introduced
 
 ---
 
@@ -417,10 +381,4 @@ cleanup-report/
 
 **Fix in dependency order.** Build errors can cause false-positive lint failures. Dead code removal can cause build errors. Fix in this order: dead code removal, build errors, lint issues, project principles compliance, test fixes, coverage improvement.
 
-**Don't over-abstract.** When removing duplicated code, only extract when it genuinely simplifies the codebase. Three similar 5-line blocks are not necessarily worth a shared utility with 3 parameters.
-
-**Don't write bad tests.** When improving coverage, write meaningful tests that verify actual behavior. A test that just calls a function without asserting anything useful doesn't count. Focus on public API surface, error paths, and boundary conditions.
-
 **Report, don't surprise.** In `--fix` mode, the FIXES.md file should clearly document every change made and why. The user should be able to review all changes before committing.
-
-**Preserve project style.** When writing new tests or refactoring code, match the existing patterns in the codebase. Don't introduce a new testing pattern, assertion library, or file structure convention.
