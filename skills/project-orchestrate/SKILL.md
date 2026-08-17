@@ -419,7 +419,7 @@ sessionModel:       <optional 'haiku' | 'sonnet' | 'opus' — the tier you are r
                      when this is set; omit it and they inherit the session tier silently.>
 ```
 
-Wait for the workflow to return. The return is `SprintStoryReturn[]` — one entry per completed (or blocked / failed) story per `lib/workflows/schemas/SprintStoryReturnSchema.json`.
+Wait for the workflow to return. The return is `SprintStoryReturn[]` — one entry per completed (or blocked / failed / infrastructure-failed) story per `lib/workflows/schemas/SprintStoryReturnSchema.json`.
 
 #### Post-workflow persistence
 
@@ -427,7 +427,8 @@ For each entry in the workflow's return:
 
 - `status: "done"` — Update the story file's frontmatter to `status: done`. Record `branch`, `prUrl` (github) or merge commit (local), and commit SHAs in the state file's "Current Sprint Stories" table.
 - `status: "blocked"` — Record `blockers[]` and `reason` in the state file. Add the `blocked` label to the story (or mark blocked locally). Continue.
-- `status: "failed"` — Same persistence as blocked, plus log the failure for sprint-release to roll over.
+- `status: "failed"` — The story's code did not work. Same persistence as blocked, plus log the failure for sprint-release to roll over.
+- `status: "infrastructure-failed"` — The worktree never obtained its dependencies, so the story's code was never exercised. Record `reason` — it names the dependency strategy that failed and what the worktree reported — in the state file, and roll the story over for sprint-release to re-run once the tree can be provisioned. Do NOT mark the story blocked or failed: there is no defect here to investigate, and recording one sends the next reader after a bug that does not exist. If several stories in a run report it, the strategy named in their reasons is the thing to change (see `dependencyStrategy` above), not the stories.
 
 #### Concurrency, isolation, and barriers
 

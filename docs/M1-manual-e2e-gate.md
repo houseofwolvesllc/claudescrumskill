@@ -129,6 +129,14 @@ repo's final `git status`/`git log` for each.
    line becomes the `WARNING: … a single worktree already exceeds the budget …`
    variant with `N == 1`.
 
+7. **Unprovisionable worktree.** Force the provisioning command to fail in the
+   worktrees — e.g. run under `dependencyStrategy: install` with the registry
+   unreachable, or under `clone` with the main tree's `node_modules` removed.
+   **Expect:** the affected stories return `status: "infrastructure-failed"`,
+   **not** `"failed"`, with a `reason` naming the strategy that failed and
+   quoting what the worktree reported; no review or verify stage runs for them;
+   and a story that instead breaks its own build still returns `"failed"`.
+
 ## Gate
 
 **PASS** requires: `npm test` green (E1–E5) **AND** every M1 scenario above
