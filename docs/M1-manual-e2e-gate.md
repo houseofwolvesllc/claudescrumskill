@@ -88,7 +88,9 @@ repo's final `git status`/`git log` for each.
    `Worktree fan-out: N concurrent worktrees — bound by cores: min(16, <host
    cores> - 2 reserved for the host) …` line whose `N` matches the host; stories
    run **concurrently** in isolated worktrees, each carrying the provisioning
-   instruction; all four return `status: "done"`.
+   instruction; all four return `status: "done"`; and `git -C "$M1" branch
+   --list 'story/*'` shows the four branches namespaced under their epic —
+   `story/m1/indep-a` and siblings, never a flat `story/indep-a`.
 
 2. **Dirty-tree carryover (F7b).** Before re-running, leave a conflicting
    uncommitted change and an untracked non-ignored scratch file (e.g. `stray.tmp`)

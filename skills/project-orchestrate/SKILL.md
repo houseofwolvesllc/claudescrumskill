@@ -616,9 +616,11 @@ If merge conflicts exist:
 After successful merge, clean up merged branches (standing authorization):
 
 ```bash
-# Delete merged story branches
+# Delete this epic's merged story branches — they are namespaced
+# `story/<epic-slug>/<story-slug>`, so another epic's branches are left alone
+# even when its run is still in flight.
 git fetch origin
-git branch -r --merged origin/development | grep -E 'origin/story/' | sed 's|origin/||' | while read branch; do
+git branch -r --merged origin/development | grep -E 'origin/story/<epic-slug>/' | sed 's|origin/||' | while read branch; do
   git push origin --delete "$branch"
 done
 
