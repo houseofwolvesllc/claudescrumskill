@@ -440,9 +440,17 @@ isolation mechanism, so the claims below are mode-conditional.
 **Worktree mode** (`node_modules` **tracked**/vendored, so it survives into a
 fresh `git worktree add` — or **untracked but provisionable**, so the
 `dependencyStrategy` fills each fresh worktree instead). Stories run
-**concurrently**, up to
-`min(16, cpu_cores - 2)`, with no per-stage barriers — each story's chain is
-independent, so one slow review doesn't gate other implementations. Concurrent
+**concurrently**, with no per-stage barriers — each story's chain is
+independent, so one slow review doesn't gate other implementations. The fan-out
+is bounded by **free disk as well as cores**: the core bound is
+`min(16, cpu_cores - 2)`, the disk bound is how many worktrees fit in 80% of the
+volume's free space at one `node_modules` each, and the run takes the smaller of
+the two — sixteen worktrees times a large dependency tree is tens of gigabytes
+of transient disk, and a full volume is the one failure a run does not recover
+from. Every run logs **which constraint bound it** (`Worktree fan-out: N … bound
+by cores/disk …`), so a slow sprint is diagnosable rather than mysterious; a run
+whose host would not report its free space or dependency size logs a prominent
+warning that nothing is bounding it by disk. Concurrent
 stories share one git repository under a single invariant: **the main working
 tree is mutated only by the serialized local-mode merge step.** Implement and
 verify run in **isolated git worktrees** (each story branches, commits, and
@@ -454,7 +462,7 @@ behind a lock.**
 it — no main tree to clone from and no lockfile to install by — or detection is
 inconclusive). A fresh worktree would stay dependency-empty, so the
 pipeline does **not** use worktrees and does **not** run stories concurrently:
-there is no `min(16, cpu_cores - 2)` fan-out and **no lock** (zero concurrency
+there is no fan-out to bound and **no lock** (zero concurrency
 removes the shared-tree race the lock guarded). Stories run **fully
 sequentially in genuine dependency-topological order** (Kahn's algorithm over
 in-batch blockers, not array order), exactly one story chain in flight, each
