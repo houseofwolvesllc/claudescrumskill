@@ -411,14 +411,15 @@ repoIdentifier:     <owner/repo> (github mode only)
 personaPreambles:   { impl: "...", ops: "...", research: "..." }
 baselinePath:       <absolute path to shared/references/ENGINEERING_BASELINE.md> (always set; applies to every story)
 situationalGuidance: <the two guidance SKILL.md paths from the non-registered _guidance/ directory — `<skills-root>/_guidance/design-patterns/SKILL.md` and `<skills-root>/_guidance/domain-modeling/SKILL.md` (resolve `<skills-root>` per Step 3b) — set ONLY when the current epic's subdomain is `core`; omit or pass [] for supporting/generic/untagged epics>
-isolationStrategy:  <optional 'auto' | 'worktree' | 'serial-in-tree'; default 'auto'. Omit it and existing callers behave unchanged. 'auto' lets the pipeline detect whether `node_modules` is tracked (→ worktree-safe) or untracked (→ serial-in-tree, the common case). A concrete value forces that strategy; forcing 'worktree' on untracked `node_modules` logs a prominent warning and proceeds (deps must already exist in each worktree or builds fail). No env-var equivalent.>
+isolationStrategy:  <optional 'auto' | 'worktree' | 'serial-in-tree'; default 'auto'. Omit it and the pipeline decides. 'auto' asks whether a fresh worktree can OBTAIN `node_modules` — tracked deps ride into it, and untracked deps are provisioned into it by any `dependencyStrategy` whose preconditions hold here (a resolvable main tree to clone from, or a lockfile naming a package manager to install with). Either answer selects worktree mode; only a repo where nothing can fill an empty worktree, or one git cannot read at all, falls back to serial-in-tree. A concrete value forces that strategy; forcing 'worktree' over untracked `node_modules` that nothing provisions logs a prominent warning and proceeds (deps must already exist in each worktree or builds fail). No env-var equivalent.>
+dependencyStrategy: <optional 'assume-present' | 'clone' | 'install' | 'symlink'. How a fresh worktree obtains its `node_modules`. Omit it and the pipeline chooses from the repo: nothing is provisioned where `node_modules` is tracked (a fresh worktree already arrives with it), and otherwise the strategy this repo is best provisioned by — 'clone' for its near-zero cost, except on a pnpm project, whose content-addressable store already makes a per-worktree install cheap enough that the validating 'install' is simply better. 'symlink' is never chosen for you. 'clone' copy-on-write clones `node_modules` from the main working tree (near-free on APFS, isolated, non-validating); 'install' runs the project's clean-install command in the worktree (slow, and the only option that proves the tree matches the lockfile); 'symlink' links the worktree's `node_modules` to the main tree's (free, but shared mutable state across concurrent stories, so it refuses a batch carrying a story that touches `package.json` or a lockfile, naming that story, rather than downgrading to another strategy). On a filesystem with no copy-on-write support 'clone' resolves to 'install' and logs the substitution, never to a real recursive copy. Under 'clone', a story whose `technical_context` or `acceptance_criteria` names `package.json` or a lockfile is escalated to 'install' for that story alone and the escalation is logged, so a missing lockfile update fails during the story instead of in CI; afterwards a story's `git diff --name-only` is read back against the strategy it ran under, and a dependency change the escalation missed is reported rather than re-provisioned — the report is the deliverable, since a silent correction hides a detection gap that will recur. Applies to worktree mode only — serial-in-tree reuses the shared working tree's dependencies and logs that the strategy was not applied. No env-var equivalent.>
 sessionModel:       <optional 'haiku' | 'sonnet' | 'opus' — the tier you are running as.
                      Fill in your own tier, the same way you fill in every other argument
                      here. Stages defined relative to the session (review) resolve only
                      when this is set; omit it and they inherit the session tier silently.>
 ```
 
-Wait for the workflow to return. The return is `SprintStoryReturn[]` — one entry per completed (or blocked / failed) story per `lib/workflows/schemas/SprintStoryReturnSchema.json`.
+Wait for the workflow to return. The return is `SprintStoryReturn[]` — one entry per completed (or blocked / failed / infrastructure-failed) story per `lib/workflows/schemas/SprintStoryReturnSchema.json`.
 
 #### Post-workflow persistence
 
@@ -426,20 +427,31 @@ For each entry in the workflow's return:
 
 - `status: "done"` — Update the story file's frontmatter to `status: done`. Record `branch`, `prUrl` (github) or merge commit (local), and commit SHAs in the state file's "Current Sprint Stories" table.
 - `status: "blocked"` — Record `blockers[]` and `reason` in the state file. Add the `blocked` label to the story (or mark blocked locally). Continue.
-- `status: "failed"` — Same persistence as blocked, plus log the failure for sprint-release to roll over.
+- `status: "failed"` — The story's code did not work. Same persistence as blocked, plus log the failure for sprint-release to roll over.
+- `status: "infrastructure-failed"` — The worktree never obtained its dependencies, so the story's code was never exercised. Record `reason` — it names the dependency strategy that failed and what the worktree reported — in the state file, and roll the story over for sprint-release to re-run once the tree can be provisioned. Do NOT mark the story blocked or failed: there is no defect here to investigate, and recording one sends the next reader after a bug that does not exist. If several stories in a run report it, the strategy named in their reasons is the thing to change (see `dependencyStrategy` above), not the stories.
 
 #### Concurrency, isolation, and barriers
 
 The workflow resolves **one** isolation strategy for the whole batch at start
-(from `isolationStrategy` if set, else by detecting whether `node_modules` is
-tracked) and runs under **one of two execution models** — never mixed within a
-run. Which model holds decides both the concurrency and the isolation
-mechanism, so the claims below are mode-conditional.
+(from `isolationStrategy` if set, else by detecting whether a fresh worktree can
+obtain `node_modules`) and runs under **one of two execution models** — never
+mixed within a run. Which model holds decides both the concurrency and the
+isolation mechanism, so the claims below are mode-conditional.
 
 **Worktree mode** (`node_modules` **tracked**/vendored, so it survives into a
-fresh `git worktree add`). Stories run **concurrently**, up to
-`min(16, cpu_cores - 2)`, with no per-stage barriers — each story's chain is
-independent, so one slow review doesn't gate other implementations. Concurrent
+fresh `git worktree add` — or **untracked but provisionable**, so the
+`dependencyStrategy` fills each fresh worktree instead). Stories run
+**concurrently**, with no per-stage barriers — each story's chain is
+independent, so one slow review doesn't gate other implementations. The fan-out
+is bounded by **free disk as well as cores**: the core bound is
+`min(16, cpu_cores - 2)`, the disk bound is how many worktrees fit in 80% of the
+volume's free space at one `node_modules` each, and the run takes the smaller of
+the two — sixteen worktrees times a large dependency tree is tens of gigabytes
+of transient disk, and a full volume is the one failure a run does not recover
+from. Every run logs **which constraint bound it** (`Worktree fan-out: N … bound
+by cores/disk …`), so a slow sprint is diagnosable rather than mysterious; a run
+whose host would not report its free space or dependency size logs a prominent
+warning that nothing is bounding it by disk. Concurrent
 stories share one git repository under a single invariant: **the main working
 tree is mutated only by the serialized local-mode merge step.** Implement and
 verify run in **isolated git worktrees** (each story branches, commits, and
@@ -447,10 +459,11 @@ builds in its own tree); review only diffs refs without checking out; and in
 local mode the per-story merges into the shared release branch are **serialized
 behind a lock.**
 
-**Serial-in-tree mode** (`node_modules` **untracked** — the common case — or
-detection is inconclusive). A fresh worktree would be dependency-empty, so the
+**Serial-in-tree mode** (`node_modules` **untracked** and nothing can provision
+it — no main tree to clone from and no lockfile to install by — or detection is
+inconclusive). A fresh worktree would stay dependency-empty, so the
 pipeline does **not** use worktrees and does **not** run stories concurrently:
-there is no `min(16, cpu_cores - 2)` fan-out and **no lock** (zero concurrency
+there is no fan-out to bound and **no lock** (zero concurrency
 removes the shared-tree race the lock guarded). Stories run **fully
 sequentially in genuine dependency-topological order** (Kahn's algorithm over
 in-batch blockers, not array order), exactly one story chain in flight, each
@@ -603,9 +616,11 @@ If merge conflicts exist:
 After successful merge, clean up merged branches (standing authorization):
 
 ```bash
-# Delete merged story branches
+# Delete this epic's merged story branches — they are namespaced
+# `story/<epic-slug>/<story-slug>`, so another epic's branches are left alone
+# even when its run is still in flight.
 git fetch origin
-git branch -r --merged origin/development | grep -E 'origin/story/' | sed 's|origin/||' | while read branch; do
+git branch -r --merged origin/development | grep -E 'origin/story/<epic-slug>/' | sed 's|origin/||' | while read branch; do
   git push origin --delete "$branch"
 done
 
