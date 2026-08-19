@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-08-17
+
+Makes the parallel-execution gate actually fire, and makes it explain itself when
+it does not. Reported from real use: worktree mode had to be requested by hand
+because auto-detection kept choosing serial.
+
+### Fixed
+- **`copyOnWriteSupported` was read but never asked for** (`lib/workflows/sprint_pipeline.js`): the field gates both whether `clone` is offered as a viable strategy and whether it falls back to `install`, but no probe ever supplied it — so it was `undefined` in every real run. `undefined !== false` meant `clone` was always offered and its fallback could never fire, leaving 2.4.0's "fall back to install where the filesystem has no copy-on-write support" unreachable in production. The probe now tests it directly (`cp -c` on APFS, `cp --reflink=always` on btrfs/XFS) rather than inferring from the OS, and reports **false** when the test fails or cannot be run — false being the safe answer, since it forces the install fallback instead of attempting a clone that cannot work.
+
+### Changed
+- **A serial-in-tree choice now says why** (`lib/workflows/sprint_pipeline.js`): the log reported `git ls-files node_modules: empty`, which is evidence for the *old* question — whether dependencies were tracked — not the one the gate now asks. A run that declined to parallelize was indistinguishable from a run that could not, whether the cause was an errored probe, a root with no recognized lockfile, no main tree path, or a filesystem that cannot clone. The line now names the viable strategies, or names precisely which inputs were missing.
+
+### Added
+- **A guard for the whole defect class** (`test/probe_schema_coverage.test.js`): every field read off a probe result must appear in that probe's schema. This is the third time a value has been consumed that nothing supplied — `sessionModel` in 2.3.0, `viableProvisioning` on the error path in 2.4.0, and `copyOnWriteSupported` here. Each read `undefined` in production while unit tests passed, because unit tests pass the value directly and the read site looks identical either way. The mismatch is only visible statically, which is where this now checks it.
+
 ## [2.4.0] — 2026-08-17
 
 Unlocks parallel story execution. Worktree mode — concurrent stories, each in
