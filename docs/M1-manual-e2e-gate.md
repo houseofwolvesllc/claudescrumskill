@@ -149,6 +149,15 @@ repo's final `git status`/`git log` for each.
    story's files are missing or its directories empty, and **not**
    `status: "blocked"`.
 
+9. **A batch that returns fewer results than it was asked for.** Make one
+   story's chain return nothing at all — e.g. have its implement stage return no
+   structured result, so the chain drops out before the pipeline's
+   `filter(Boolean)`. **Expect:** an `INCOMPLETE BATCH: 1 of N requested stories
+   returned no result at all — <slug>` line naming the missing story, and on an
+   ordinary run the `Batch reconciliation: all N requested stories returned a
+   result.` line instead. A story that returns `blocked` or `failed` counts as
+   returned and appears in neither list of missing IDs.
+
 ## Gate
 
 **PASS** requires: `npm test` green (E1–E5) **AND** every M1 scenario above
