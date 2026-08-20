@@ -1,7 +1,7 @@
 {
   "name": "claude-scrum-skill",
   "description": "Scrum project management pipeline for Claude Code — PRD to production release with sprint planning, status tracking, and full-project emulation testing.",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "skills": [
     {
       "name": "spec",
