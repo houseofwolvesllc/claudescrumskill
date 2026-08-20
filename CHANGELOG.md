@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.2] — 2026-08-20
+
+Two defects that fell out of running 2.6.1 rather than reading it, both in the family
+ADR-0009 named: the harness had the fact and took a report instead.
+
+### Fixed
+- **A story's record could disagree with git about where its work lived** (`lib/workflows/_shared/stamp_story_facts.mjs`, new): the PR stage is handed the whole `SprintStoryReturn` to fill in, so a story's slug and branch came back as whatever that agent chose — though the pipeline assigned both before it ran. Observed: a story implemented on its own epic-namespaced branch came back naming the **release** branch, which is a reasonable thing for a stage whose last act is a merge to say, and is not where the story lives. Slug and branch are now stamped from the pipeline's values. Status, commits and blockers stay the agent's — it is the only party that watched the merge.
+- **Orphaned harness refs accumulated a few per sprint** (`lib/workflows/_shared/prune_story_worktrees.mjs`): the harness parks each new worktree on a `worktree-<run>-<n>` branch at the repository's default branch; an implement agent moves the worktree to its story branch and leaves the ref behind. Teardown now deletes such a ref — but only when its commit is reachable from a ref that is not itself a `worktree-*` branch, so the commit survives the ref. One carrying commits nothing else contains is retained, being the only handle on them.
+
+### Changed
+- **A correction is reported, not silently applied**: when a returned record disagrees with what the pipeline assigned, the mismatch is logged naming both values. A silent correction hides the drift that produced it — the same reasoning that governs ADR-0008's dependency-escalation reconciliation.
+
+### Added
+- ADR-0011 records the decision and the mechanism behind a mispositioned stage.
+- Three structural guards that the PR record is stamped, that the stamp reads the branch from `storyBranch` rather than any report, and that a correction is logged. All three were mutation-tested: each fails by name when its property is removed.
+- 14 unit tests across the two modules.
+
+### Note
+Diagnosis worth keeping: because every fresh worktree is parked at the **default
+branch**, a stage that fails to reposition itself does not land somewhere arbitrary — it
+lands on `main`, silently. That is how a verify stage in the 2.6.1 proof run came to read
+`main` while believing it read its story's code. `assert_tree_identity` caught it and
+classified it `infrastructure-failed` rather than letting a verdict be rendered against
+the wrong tree. An infrastructure failure is still not retried, which is what turned that
+catch into a lost story; retry remains open.
+
 ## [2.6.1] — 2026-08-20
 
 Closes debrief finding F5 — the orphaned worktrees. A reported run left 25 worktrees
