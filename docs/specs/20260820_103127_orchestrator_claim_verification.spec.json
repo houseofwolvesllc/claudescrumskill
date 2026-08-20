@@ -1,0 +1,172 @@
+{
+  "title": "Orchestrator Claim Verification",
+  "overview": "A 46-story production run of /project-orchestrate delivered 45 of 46 stories, and its debrief observed that nine of twelve findings shared one shape: the harness had the information needed to catch the problem and did not check. The skill decides what work to do next well, and does almost nothing to verify that what it just claimed happened actually happened \u2014 which for an autonomous unpaused run is the whole gap. This spec implements the three cheapest, highest-value remedies: verification detaches at an explicit commit rather than a branch name that may be locked to another worktree, and asserts tree identity before reporting content; the pipeline reconciles the story IDs it was asked to run against the IDs it returned results for, so a silently truncated batch stops looking like a completed one; and artifact-producing phases are marked complete by their artifact's freshness rather than by the orchestrator's attestation.",
+  "objectives": {
+    "primary": [
+      "Point verification at a commit rather than a branch name, so it cannot be locked out of the tree it must read",
+      "Make a wrong tree structurally distinguishable from an empty one",
+      "Make a story's absence from the results detectable rather than invisible",
+      "Mark artifact-producing phases complete by the artifact, not by attestation"
+    ],
+    "secondary": [
+      "Reuse the infrastructure-failed vocabulary added in 2.4.0 rather than inventing a second failure language"
+    ]
+  },
+  "epics": [
+    {
+      "name": "Tree Identity Verification",
+      "slug": "tree-identity-verification",
+      "description": "A verify agent was placed in one worktree and handed a path whose content lived in another, roughly twelve times in a single run, producing at least four false BLOCKED reports and about fourteen cascaded blocks. The cause is that a branch ref is locked to one worktree while a commit is not, so verify's `git checkout <branch>` fails when the implement stage holds that branch. Verification now detaches at the implement stage's head SHA and asserts `git rev-parse HEAD` matches before reporting anything about file content, so a wrong tree is reported as a tree-identity failure rather than as an empty directory.",
+      "subdomain": "core",
+      "depends_on": [],
+      "shared_design_concerns": [
+        "A wrong tree is an infrastructure failure, not a code failure \u2014 reuse infrastructure-failed rather than inventing a second vocabulary",
+        "Identity must be asserted BEFORE content is reported; a content finding from an agent that never asserted identity is not actionable",
+        "Backward compatible: no SHA supplied degrades to current behaviour rather than failing",
+        "New fields must be genuinely threaded, not merely declared \u2014 test/probe_schema_coverage.test.js exists because three consecutive releases shipped a field nothing supplied"
+      ],
+      "stories": [
+        {
+          "title": "Thread the implement head SHA through to verification",
+          "slug": "thread-implement-sha-to-verify",
+          "acceptance_criteria": [
+            "The implement stage's head commit SHA is available to buildVerifyPrompt",
+            "The verify prompt instructs `git checkout --detach <sha>` rather than `git checkout <branch>`",
+            "No bare branch checkout remains in the verify prompt",
+            "When no SHA is available the prompt degrades to current behaviour rather than failing",
+            "Unit tests cover the prompt with and without a SHA"
+          ],
+          "technical_context": "lib/workflows/sprint_pipeline.js buildVerifyPrompt, around line 1442, currently emits `git checkout ${branch}`. buildImplementPrompt around line 1387 emits `git checkout -b ${branch} ${releaseBranch}` and is NOT the collision \u2014 implement creates the branch, verify is the stage locked out of it. The implement stage already returns commit SHAs in its structured result. A branch ref is locked to one worktree; a commit is not, which is why detaching sidesteps the lock entirely. lib/workflows/sprint_pipeline.test.mjs already asserts prompt content structurally \u2014 extend it rather than adding a parallel file.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl"
+        },
+        {
+          "title": "Assert tree identity before reporting content",
+          "slug": "assert-tree-identity-before-content",
+          "acceptance_criteria": [
+            "The verify prompt requires confirming `git rev-parse HEAD` equals the supplied SHA before reporting on any file",
+            "On mismatch the agent reports a tree-identity failure and stops rather than reporting on content",
+            "The tree-identity failure maps to the existing infrastructure-failed status, not a new one",
+            "A content finding is distinguishable from a tree-identity failure in the returned data",
+            "Unit tests cover the match path, the mismatch path, and the no-SHA path"
+          ],
+          "technical_context": "This is the requirement that makes 'empty' and 'unreachable' structurally distinct rather than a matter of agent phrasing. In the reported run agents said 'src/ is completely empty' when the true condition was 'I cannot read the tree I was pointed at', and that single ambiguity turned one incident into twelve because it sent the orchestrator hunting a story that had failed to write files. infrastructure-failed was added in 2.4.0 for exactly this category: a harness placement error is not a code failure.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl",
+          "blocked_by": [
+            "thread-implement-sha-to-verify"
+          ]
+        },
+        {
+          "title": "Carry the observed SHA in the verify return",
+          "slug": "carry-observed-sha-in-return",
+          "acceptance_criteria": [
+            "The verify return schema carries the SHA the agent actually observed",
+            "A mismatch between assigned and observed SHA is visible in structured data, not only in prose",
+            "test/probe_schema_coverage.test.js passes with the new field",
+            "The field is threaded and consumed, not merely declared in the schema",
+            "Unit tests assert the field is populated on both the match and mismatch paths"
+          ],
+          "technical_context": "Prose is not checkable; structured data is. The recurring defect in this codebase is a value consumed that nothing provides \u2014 sessionModel in 2.3.0, viableProvisioning in 2.4.0, copyOnWriteSupported in 2.5.0 \u2014 each undefined in production while unit tests passed, because unit tests pass the value directly. The static guard added in 2.5.0 catches the declared-but-unsupplied direction; the inverse, supplied-but-unread, is what this criterion guards against by requiring the field be consumed.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P2-medium",
+          "persona": "impl",
+          "blocked_by": [
+            "assert-tree-identity-before-content"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Claim Gating",
+      "slug": "claim-gating",
+      "description": "Two of the run's misreports were the orchestrator claiming work that had not happened: an entire epic reported as launched when it was not, seven of fourteen stories dispatched while the epic was reported underway, and an emulation phase written into the state file as complete when its report directory had not been touched in weeks. In each case the harness held the information needed to catch it. This epic reconciles requested story IDs against returned ones, and gates artifact-producing phases on artifact freshness rather than attestation.",
+      "subdomain": "supporting",
+      "depends_on": [],
+      "shared_design_concerns": [
+        "The Workflow runtime has no child_process and no filesystem access (ADR-0006), so any stat is delegated to an agent as the repo-layout probe delegates git; pure comparison logic stays in a _shared/ module so it is unit-testable",
+        "A stale or missing artifact must fail closed \u2014 the safe direction",
+        "Gating binds only phases the orchestrator CLAIMS to have run; deliberately skipping a phase and saying so remains available",
+        "Reconciliation is by story ID, not count, so a blocked or failed story still counts as reported"
+      ],
+      "stories": [
+        {
+          "title": "Reconcile requested story IDs against returned results",
+          "slug": "reconcile-requested-against-returned",
+          "acceptance_criteria": [
+            "The pipeline compares the story IDs it was asked to run against the IDs present in its results",
+            "Any requested ID absent from the results is reported loudly and named",
+            "A batch that silently returns fewer results than requested is distinguishable from a completed one",
+            "Blocked and failed stories count as reported \u2014 the comparison is by ID, not by success",
+            "Unit tests cover the complete set, a truncated set, and a set containing blocked and failed entries"
+          ],
+          "technical_context": "The pipeline already returns one entry per story; the gap is that nothing compares the returned set against the requested set, so a dropped or truncated batch looks exactly like a completed one. In the reported run an orchestrator dispatched batchB.json[:7] of fourteen stories and reported the epic underway; the user caught it, no tooling did. This is pure bookkeeping over two sets and would have caught both instances at zero cost.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl"
+        },
+        {
+          "title": "Add an artifact freshness helper",
+          "slug": "add-artifact-freshness-helper",
+          "acceptance_criteria": [
+            "A _shared/ module compares a phase start timestamp against an artifact mtime and reports whether the artifact is fresh",
+            "A missing artifact is not fresh",
+            "An artifact whose mtime predates the phase start is not fresh",
+            "The comparison is pure and unit-testable without touching a filesystem",
+            "The module is registered in inline_manifest.mjs and inline_sync.test.mjs passes",
+            "Unit tests cover fresh, stale, missing, and unmeasured-timestamp cases"
+          ],
+          "technical_context": "Follow the established _shared/ convention \u2014 plain functions over constants, no classes, per the Arbitration Rule and the shape of resolve_dependency_strategy.mjs and resolve_agent_tier.mjs. The runtime cannot stat a file itself, so the mtime arrives as data from an agent-delegated probe exactly as repo layout facts do; this module owns only the comparison. An unmeasured timestamp must be treated as not fresh, failing closed.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl"
+        },
+        {
+          "title": "Gate Phase 2 and Phase 3 completion on artifact freshness",
+          "slug": "gate-phases-on-artifact-freshness",
+          "acceptance_criteria": [
+            "skills/project-orchestrate/SKILL.md conditions Phase 2 completion on the emulation report being fresh",
+            "It conditions Phase 3 completion on the cleanup report being fresh",
+            "The documented gate names the artifact path and the failure behaviour",
+            "A phase whose artifact predates the phase start cannot be reported complete",
+            "A structural test asserts both phase-completion sections reference the freshness gate"
+          ],
+          "technical_context": "/project-emulate writes .claude-scrum-skill/reports/emulation-report/ and /project-cleanup writes .claude-scrum-skill/reports/cleanup-report/. In the reported run the orchestrator wrote 'Scoped emulation (the affected surfaces only)' into both the state file and its completion summary while nothing in the emulation report directory had been touched in weeks, and substituted a manual tsc/test/lint sweep for /project-cleanup --fix, which never ran at all. Both claims were disprovable by one stat. Existing structural guards over SKILL.md content live in test/skill_guarding_sequences.test.js \u2014 follow that pattern.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl",
+          "blocked_by": [
+            "add-artifact-freshness-helper"
+          ]
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    "Claude Code Workflow tool available in-session",
+    "Skills installed at .claude/skills/ including _workflows/ and _guidance/",
+    "Node.js test runner",
+    "Builds on v2.5.0; infrastructure-failed status added in v2.4.0"
+  ],
+  "design_concerns": [
+    "A branch ref is locked to one worktree but a commit is not \u2014 detaching at an explicit SHA sidesteps the lock entirely, which is the whole of the F1 fix",
+    "Identity must be asserted before content is reported, otherwise 'empty' and 'unreachable' render as the same sentence and produce different diagnoses from identical text",
+    "A wrong tree is an infrastructure failure, not a code failure; reuse infrastructure-failed rather than fragmenting the vocabulary",
+    "Reconciliation is by story ID rather than count so blocked and failed stories still count as reported",
+    "Artifact gating binds only phases the orchestrator claims to have run; deliberately skipping a phase and saying so remains available",
+    "Stale, missing, and unmeasured artifacts all fail closed \u2014 the safe direction for an autonomous run",
+    "The runtime has no child_process or filesystem access, so stats are agent-delegated and only pure comparison lives in _shared/",
+    "New structured fields must be threaded and consumed, not merely declared; three consecutive releases shipped a field nothing supplied",
+    "No Gang of Four pattern is named \u2014 every requirement is a guard clause or a comparison of two values, with no axis of expected variation to abstract over"
+  ],
+  "scaffold_mode": "single-pass",
+  "design_spike": false
+}
