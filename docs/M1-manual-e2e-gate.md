@@ -139,6 +139,16 @@ repo's final `git status`/`git log` for each.
    quoting what the worktree reported; no review or verify stage runs for them;
    and a story that instead breaks its own build still returns `"failed"`.
 
+8. **Verification standing in the wrong tree.** After a story commits, move the
+   verify stage off its commit before it reads anything — e.g. reset the shared
+   tree to the release branch between the implement and verify stages, so the
+   story's files are absent from the tree the verify agent is placed in.
+   **Expect:** the story returns `status: "infrastructure-failed"` with a
+   `reason` naming the revision the tree should have been at and quoting what
+   `git rev-parse HEAD` printed instead — **not** a verify finding that the
+   story's files are missing or its directories empty, and **not**
+   `status: "blocked"`.
+
 ## Gate
 
 **PASS** requires: `npm test` green (E1–E5) **AND** every M1 scenario above
