@@ -15,6 +15,7 @@ the context, the decision, and what it cost.
 | [0007](0007-model-coupled-prompt-surface.md) | Delete the prompt-surface workarounds written for an earlier model, and set model and effort per agent call instead of inheriting the session tier. |
 | [0008](0008-worktree-dependency-provisioning.md) | Select worktree parallelism on whether a worktree can obtain dependencies, not on whether they are tracked in git. |
 | [0009](0009-verify-claims-not-attestations.md) | Gate a phase on its own artifact rather than on the orchestrator's claim, and point verification at a commit rather than a branch. |
+| [0010](0010-worktree-teardown.md) | Reclaim only the worktrees a sprint can prove it created — under the harness's directory and on a landed branch or a merged commit — never by a blanket prune. |
 
 ## The verification arc — 0006 through 0009
 
