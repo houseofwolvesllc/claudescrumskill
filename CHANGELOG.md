@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.1] — 2026-08-20
+
+Closes debrief finding F5 — the orphaned worktrees. A reported run left 25 worktrees
+and roughly 65GB behind, because worktree mode created two worktrees per story and
+nothing ever reclaimed them: the Workflow tool releases a worktree only when it is
+*unchanged*, and a story's worktree always carries commits.
+
+Fixing it is mostly a question of what NOT to delete. A repository holds worktrees
+this sprint never created — concurrent sprints, other agents' workspaces, the user's
+own checkouts — and a blanket prune takes all of them.
+
+### Fixed
+- **A worktree-mode sprint now reclaims the worktrees it created** (`lib/workflows/_shared/prune_story_worktrees.mjs`, new): a worktree is removed only when it sits under the harness's own `.claude/worktrees/` directory AND is identifiably this sprint's — checked out on a story branch that landed, or detached at a commit already merged into the release branch. The second clause is what catches the verify worktrees, which carry no branch to match on, and what keeps a **concurrent** sprint safe: its worktrees sit at commits not yet merged here, so they fail the ancestry test. A story that did not land keeps its worktree, so the failure stays inspectable. Removal takes the checkout, never the branch; commits stay reachable.
+
+### Changed
+- **The teardown rule runs in the pipeline, not in a prompt** (`lib/workflows/sprint_pipeline.js`): a `teardown` probe agent reports `git worktree list --porcelain` and which detached HEADs are ancestors of the release branch; `selectRemovableWorktrees` decides; a second agent is handed exact paths and no discretion. Describing the rule in prose and trusting an agent to apply it would have repeated the defect ADR-0009 was written about — and would have made the module dead code, which is the shape of the last four defects this suite shipped.
+- **`teardown` joins the stage tier table** (`lib/workflows/_shared/resolve_agent_tier.mjs`): cheapest model, low effort. Both calls are mechanical.
+
+### Added
+- ADR-0010 records the decision and why selection is scoped rather than blanket.
+- `test/teardown_prune_scoping.test.js` — four structural guards that the teardown prompt is built from `pruneWorktreeCommands` and can never emit an unscoped removal.
+- `prune_story_worktrees.test.mjs` — ten unit tests over the selection rule, including "leaves a concurrent sprint's worktree alone" and "never reclaims a worktree outside `.claude/worktrees/`".
+
+### Verified
+Two live worktree-mode sprints, neither passing `isolationStrategy`, so the gate
+selected worktree mode on its own. Story branches were namespaced per epic, verify
+worktrees detached correctly, and merges serialized. Teardown then removed exactly
+the landed story's two worktrees, left the seven unrelated workspaces and the main
+tree untouched, and **retained** the worktree of a story that failed — a retention
+path exercised by an unplanned infrastructure failure rather than by design. The
+worktree listing after the sprint was identical to the listing before it.
+
 ## [2.6.0] — 2026-08-20
 
 Closes the three cheapest findings from a 46-story production run's debrief. That
