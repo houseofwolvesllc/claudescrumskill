@@ -13,7 +13,7 @@
     "status": {
       "type": "string",
       "enum": ["done", "blocked", "failed", "infrastructure-failed"],
-      "description": "done — the story shipped. blocked — it stopped on something outside itself. failed — the story's code did not work. infrastructure-failed — the worktree never obtained its dependencies, so the story's code was never exercised; the fix is to the tree, not to the story, and treating it as a defect sends a reader hunting a bug that does not exist."
+      "description": "done — the story shipped. blocked — it stopped on something outside itself. failed — the story's code did not work. infrastructure-failed — the tree failed the story rather than the story failing: it never obtained its dependencies, or verification was not reading the tree it was placed at. Either way the story's code was never exercised there; the fix is to the tree, not to the story, and treating it as a defect sends a reader hunting a bug that does not exist."
     },
     "branch": {
       "type": "string",
@@ -36,7 +36,7 @@
     },
     "reason": {
       "type": "string",
-      "description": "Free-text explanation when status = failed, infrastructure-failed, or blocked. Under infrastructure-failed it names the dependency strategy that failed and what the worktree reported."
+      "description": "Free-text explanation when status = failed, infrastructure-failed, or blocked. Under infrastructure-failed it names what the tree could not do: the dependency strategy that failed and what the worktree reported, or the revision verification was supposed to be at and what HEAD printed instead."
     }
   },
   "additionalProperties": false
