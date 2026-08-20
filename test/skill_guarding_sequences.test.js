@@ -30,12 +30,28 @@ const REMOVED_FROM_ORCHESTRATE = [
   /this should proceed fully autonomously/,
 ];
 
+// A phase that writes a report is a phase whose completion is checkable. In the
+// run these gates come from, an emulation pass and a cleanup pass were both
+// written into the state file as complete while neither report directory had
+// been touched in weeks, so the gates read the report instead of the account.
+const EMULATION_GATE = '### Phase 2 Completion Gate — Emulation Report Freshness';
+const CLEANUP_GATE = '### Phase 3 Completion Gate — Cleanup Report Freshness';
+
 function skill(skillPath) {
   return fs.readFileSync(skillPath, 'utf8');
 }
 
 function survivorsOf(markdown, removed) {
   return removed.filter(scaffold => scaffold.test(markdown)).map(String);
+}
+
+function sectionBetween(markdown, heading, nextHeading) {
+  const start = markdown.indexOf(heading);
+  const end = markdown.indexOf(nextHeading, start);
+
+  assert.ok(start !== -1 && end > start, `${heading} is missing or no longer precedes ${nextHeading}`);
+
+  return markdown.slice(start, end);
 }
 
 test('project-cleanup carries none of the scaffolding the audit removed', () => {
@@ -125,4 +141,32 @@ test('project-orchestrate keeps emulation and cleanup mandatory', () => {
 
   assert.match(markdown, /\*\*Phase 2 is mandatory\.\*\*/);
   assert.match(markdown, /\*\*Phase 3 is mandatory\.\*\*/);
+});
+
+test('project-orchestrate gates Phase 2 completion on a fresh emulation report', () => {
+  const gate = sectionBetween(skill(ORCHESTRATE), EMULATION_GATE, '## Phase 3 — Project Cleanup');
+
+  assert.match(gate, /\.claude-scrum-skill\/reports\/emulation-report\/ISSUES\.md/);
+  assert.match(gate, /at or after `Phase Started`/);
+  assert.match(gate, /Phase 2 cannot be reported complete/);
+});
+
+test('project-orchestrate gates Phase 3 completion on a fresh cleanup report', () => {
+  const gate = sectionBetween(skill(ORCHESTRATE), CLEANUP_GATE, '### Step 15');
+
+  assert.match(gate, /\.claude-scrum-skill\/reports\/cleanup-report\/SUMMARY\.md/);
+  assert.match(gate, /at or after `Phase Started`/);
+  assert.match(gate, /Phase 3 cannot be reported complete/);
+});
+
+test('project-orchestrate routes both phase completions through their freshness gate', () => {
+  const markdown = skill(ORCHESTRATE);
+
+  assert.match(markdown, /clear the Phase 2 Completion Gate below, then skip to Step 14/);
+  assert.match(markdown, /clear the Phase 2 Completion Gate below, then proceed to Step 14/);
+  assert.match(markdown, /clear the Phase 3 Completion Gate below, then proceed to Step 15/);
+  assert.match(
+    sectionBetween(markdown, CLEANUP_GATE, '### Step 15'),
+    /## Phase 3 Complete — Project Cleanup/,
+  );
 });

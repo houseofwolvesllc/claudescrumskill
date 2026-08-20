@@ -252,6 +252,7 @@ Orchestration state is persisted to `.claude-scrum-skill/orchestration-state.md`
 - **Last Updated:** <ISO timestamp>
 
 ## Current Position
+- **Phase Started:** <ISO timestamp> (set on entry to each phase)
 - **Current Epic:** <epic name> (milestone #<number>)
 - **Current Sprint:** <N>
 - **Hardening Run:** <N> (Phase 2 only)
@@ -293,6 +294,7 @@ Orchestration state is persisted to `.claude-scrum-skill/orchestration-state.md`
 
 **During execution**, update the state file:
 - After every sprint plan, story completion, release, and phase transition
+- On entry to each phase, set `Phase Started` to that moment — the Phase 2 and Phase 3 completion gates compare their report's mtime against it
 - On any error that pauses execution
 - Keep the log section as an append-only journal (trim entries older than the current phase to prevent unbounded growth)
 
@@ -705,7 +707,7 @@ Read and parse `.claude-scrum-skill/reports/emulation-report/ISSUES.md`. Extract
 - **Warning** — should fix (degrades quality or reliability)
 - **Info** — may fix (cleanup, minor improvements)
 
-If no critical or warning findings exist → skip to Step 14 (Project Cleanup).
+If no critical or warning findings exist → clear the Phase 2 Completion Gate below, then skip to Step 14 (Project Cleanup).
 
 Count and categorize:
 
@@ -775,7 +777,7 @@ After the hardening epic is complete, run emulation again:
 Parse the new findings:
 
 - **If new critical or warning findings exist** → increment the run counter and loop back to Step 10
-- **If clean (no critical or warning findings)** → proceed to Step 14 (Project Cleanup)
+- **If clean (no critical or warning findings)** → clear the Phase 2 Completion Gate below, then proceed to Step 14 (Project Cleanup)
 
 Safety valve: If this is the 3rd consecutive hardening run, pause and escalate to the user:
 
@@ -790,6 +792,21 @@ Options:
 2. Accept current state and finish
 3. Review findings manually
 ```
+
+### Phase 2 Completion Gate — Emulation Report Freshness
+
+Phase 2 is complete only when `/project-emulate` wrote its report during this phase. Read the report's mtime and compare it against `Phase Started` in the state file:
+
+```bash
+node -e "console.log(require('node:fs').statSync(process.argv[1]).mtime.toISOString())" \
+  .claude-scrum-skill/reports/emulation-report/ISSUES.md
+```
+
+- **mtime at or after `Phase Started`** → this phase wrote the report. Phase 2 is complete.
+- **mtime before `Phase Started`** → the report belongs to an earlier run, so no emulation ran here. Phase 2 cannot be reported complete: leave `Phase: emulation-hardening` in the state file, claim no emulation pass in any summary, and return to Step 8.
+- **No report to read** (the command errors) → identical handling. An artifact that is not there is not evidence that a phase ran.
+
+The gate reads the report, not the account of it. A summary describing an emulation the report does not carry — a narrower scope, a subset of surfaces, a pass that already ran — is the failing case, not an exception to it.
 
 ---
 
@@ -816,10 +833,25 @@ This runs across the **entire codebase** and automatically fixes:
 
 After cleanup completes, read the report at `.claude-scrum-skill/reports/cleanup-report/SUMMARY.md`:
 
-- **If all phases PASS** → proceed to Step 15 (Completion Summary)
-- **If any phase FAIL** → review the report, attempt a second cleanup pass. If issues persist after two passes, log remaining issues and proceed to Step 15 with a note
+- **If all phases PASS** → clear the Phase 3 Completion Gate below, then proceed to Step 15 (Completion Summary)
+- **If any phase FAIL** → review the report, attempt a second cleanup pass. If issues persist after two passes, log remaining issues, clear the Phase 3 Completion Gate below, then proceed to Step 15 with a note
 
-Print a phase transition summary:
+### Phase 3 Completion Gate — Cleanup Report Freshness
+
+Phase 3 is complete only when `/project-cleanup --fix` wrote its report during this phase. Read the report's mtime and compare it against `Phase Started` in the state file:
+
+```bash
+node -e "console.log(require('node:fs').statSync(process.argv[1]).mtime.toISOString())" \
+  .claude-scrum-skill/reports/cleanup-report/SUMMARY.md
+```
+
+- **mtime at or after `Phase Started`** → this phase wrote the report. Phase 3 is complete.
+- **mtime before `Phase Started`** → the report belongs to an earlier run, so no cleanup ran here. Phase 3 cannot be reported complete: leave `Phase: project-cleanup` in the state file, claim no cleanup pass in any summary, and return to Step 14.
+- **No report to read** (the command errors) → identical handling. An artifact that is not there is not evidence that a phase ran.
+
+A hand-run build, lint, and test sweep writes no report and so clears no gate. Step 14 invokes `/project-cleanup --fix`; nothing else satisfies this phase.
+
+Once the report is fresh, print the phase transition summary:
 
 ```
 ## Phase 3 Complete — Project Cleanup
