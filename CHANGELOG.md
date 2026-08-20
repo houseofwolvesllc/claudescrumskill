@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.6.0] — 2026-08-20
+
+Closes the three cheapest findings from a 46-story production run's debrief. That
+run delivered 45 of 46 stories but lost substantial work to harness defects, and
+its own summary named the shape they shared: **the harness had the information
+needed to catch the problem and did not check.** The skill decides what work to do
+next well; it did almost nothing to verify that what it just claimed happened,
+happened. For an autonomous unpaused run that is the whole gap.
+
+### Fixed
+- **Verification was locked out of the tree it had to read** (`lib/workflows/sprint_pipeline.js`): `buildVerifyPrompt` instructed `git checkout <branch>`, and a branch ref is held by exactly one worktree — so when the implement stage held it, verify landed in a tree that did not contain the work. In the reported run that cost roughly twelve occurrences, at least four false BLOCKED reports, and about fourteen cascaded blocks. A **commit** is not locked the way a ref is: verification now detaches at the implement stage's head SHA. No bare branch checkout remains in the verify prompt.
+- **"Empty" and "unreachable" rendered as the same sentence** (`_shared/assert_tree_identity.mjs`): agents reported *"src/ is completely empty"* when the true condition was *"I cannot read the tree I was pointed at"* — different diagnoses from identical text, which is what turned one incident into twelve. The verify agent now confirms `git rev-parse HEAD` matches the SHA it was given **before** reporting on any file, and a mismatch reports `infrastructure-failed` — reusing the vocabulary added in 2.4.0 rather than inventing a second one. The observed SHA rides in the structured return, so a mismatch is visible in data rather than only in prose.
+
+### Added
+- **Launch receipts** (`_shared/reconcile_story_results.mjs`): the pipeline returned one entry per story, but nothing compared the returned set against the requested set — so a truncated batch looked exactly like a completed one. That is how an epic was reported underway with 7 of its 14 stories dispatched. The batch now names every story nothing came back for. The comparison is by story ID rather than by success, so blocked and failed stories still count as reported.
+- **Artifact-based phase gating** (`skills/project-orchestrate/SKILL.md`, `_shared/artifact_freshness.mjs`): Phase 2 and Phase 3 completion are conditioned on their reports having been written *by this run*, read via `stat` and compared against the phase start. An artifact whose mtime predates the phase start, or that is not there at all, means the phase did not run — no summary describing it can make it so. Stale, missing, and unparseable timestamps all fail closed.
+
+### Note on what emulation caught
+The freshness module shipped **inlined into the pipeline and called from nowhere** — 41 lines of dead code registered in the inline manifest with zero call sites. The gate itself is sound and lives in the skill, because the workflow runtime cannot read a filesystem (ADR-0006); the module had duplicated that logic where it could never reach the data. The inline is removed; the module and its thirteen tests stay as the executable specification of the gate's semantics. The verify agent for that finding hit the StructuredOutput retry cap and returned no verdict, so it was resolved on the merits rather than counted as passed.
+
 ## [2.5.0] — 2026-08-17
 
 Makes the parallel-execution gate actually fire, and makes it explain itself when

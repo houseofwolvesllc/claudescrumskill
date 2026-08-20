@@ -551,7 +551,9 @@ The package manager is resolved from the lockfile present (npm, pnpm, yarn, bun)
 
 Concurrency is bounded by **available disk as well as cores**, and the binding constraint is logged — a slow run should be diagnosable rather than mysterious. Story branches are namespaced `story/<epic-slug>/<story-slug>` so batches from different epics cannot collide on identical story slugs.
 
-A story whose dependency setup fails reports **`infrastructure-failed`**, not `failed`. The distinction matters: `failed` means the story's code did not work, and reusing it for a failed install sends someone hunting a bug that does not exist.
+A story whose dependency setup fails reports **`infrastructure-failed`**, not `failed`. The distinction matters: `failed` means the story's code did not work, and reusing it for a failed install sends someone hunting a bug that does not exist. Verification reports the same status when the tree it is standing in is not at the commit it was placed at — it has found where the harness put it, not whether the code works.
+
+Every batch reconciles the story IDs it was asked to run against the IDs its results carry, and logs which of the two it was: `Batch reconciliation: all N requested stories returned a result.` or an `INCOMPLETE BATCH` line naming every story nothing came back for. The comparison is by ID, so a `blocked` or `failed` story counts as reported — the thing being caught is a truncated batch reading as a completed one.
 
 See [ADR-0008](docs/adrs/0008-worktree-dependency-provisioning.md) for the reasoning.
 
