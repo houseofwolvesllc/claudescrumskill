@@ -7,6 +7,112 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.1] — 2026-08-20
+
+An override that costs a run its parallelism now says so. Diagnosed from a real
+project, not from reading the code.
+
+### Fixed
+- **Forcing `serial-in-tree` was recorded as a source, never as a cost** (`lib/workflows/_shared/detect_repo_layout.mjs`): an `isolationStrategy` override does not merely pick a strategy, it **suppresses the gate**. A project whose gate resolves cleanly to worktree — npm lockfile, resolvable main tree, copy-on-write filesystem, viable provisioning `[clone, install]` — ran every sprint serially anyway, and the operator reasonably concluded parallelism "was not baked in yet." It was. Something upstream had filled in the argument the skill surface documents as optional, and nothing in the run contradicted that conclusion. A forced serial on a repository the gate would have run in parallel now warns that stories will run one at a time, names the provisioning that was available so the claim is checkable, and says to omit the argument.
+- **The skill surface permitted the argument instead of prohibiting it** (`skills/project-orchestrate/SKILL.md`): a model filling in an invocation block supplies the fields it is shown, and "optional" is not a deterrent. The argument now leads with **DO NOT SET THIS unless the user explicitly asked**, states that setting it suppresses the gate, and names what forcing serial gives up. Guarded by `test/isolation_override_guidance.test.js`.
+
+### Note
+The symmetric warning already existed in the other direction — forcing worktree over
+dependencies nothing provisions says so plainly. Forcing serial was the quiet one, and it
+stayed quiet because it never fails: it just costs wall-clock on every story, on every
+run, invisibly. That asymmetry is the whole defect.
+
+Worth recording how this was found. Three theories were wrong before the evidence
+arrived — twice the cause was assumed to be a stale install, and the install turned out to
+carry the gate. One diagnostic proposed along the way could never have worked at all,
+because the narrator's log output is not persisted in the transcripts it told the operator
+to grep. What settled it was executing the gate against the real repository and reading
+what it returned.
+
+## [2.7.0] — 2026-08-20
+
+A caught problem should not become a lost story. The harness had been detecting its
+own placement errors and then reporting them as the story's outcome.
+
+### Added
+- **Verification is given a second tree before its misplacement is called a failure** (`lib/workflows/_shared/retry_placement.mjs`, new): a stage that read the wrong tree discovered where the harness put it, not whether the code works. Retrying is sound here because of two properties that do **not** hold generally — verification only READS, so a second attempt commits, opens and merges nothing; and in worktree mode each attempt is given a fresh worktree, so the retry is a genuinely different placement rather than the same one repeated. A misplacement that outlives the attempts is reported as having been retried, so a systematic cause reads differently from one unlucky placement.
+- ADR-0012 records the boundary.
+- `inline_manifest_coverage.test.mjs` — every inlined module keeps a colocated unit test. Once inlined a module cannot be imported, so that test is the only place its behaviour is ever exercised.
+
+### Fixed
+- **A blocked story reported `blockers: [null, null]`** (`lib/workflows/_shared/describe_finding.mjs`, new): the review verdict's findings were declared as a bare `{ type: 'array' }` — an item shape promising nothing — and the pipeline read `finding.title` off findings that carry `short_summary`, `summary` and `file`. Every blocker line serialized to null. In the run that surfaced it the review had said exactly what was wrong ("require() cannot load .mjs ES modules — test will crash") and the story was told it was blocked and never told why. The finding item is now declared in the schema and read through one function tested against that shape.
+- **The review stage was aimed by a report rather than by the pipeline**: `buildReviewPrompt` interpolated `impl.branch` into `git diff <release>...<branch>`. Unlike verification, review has **no** identity assertion, so a drifted branch would have made it diff the wrong refs and report on code that is not the story's — silently. It now diffs the branch `storyBranch` names.
+- **Every outcome path states the branch** rather than repeating the implement report: `reviewBlocked`, `verifyBlocked`, `dependencySetupFailed` and `treeIdentityFailed` all carried `impl.branch`. v2.6.2 stamped only the finalize path; this completes it.
+
+### Note
+The blocker defect is the **fifth** instance of one shape: a value consumed that nothing
+supplies. It survives unit tests because a test constructs the object it wants and passes
+it in directly, so the field is present exactly where it is read and absent only in
+production. Two things stop it, and both are in this release: naming the shape in the
+schema so what is read is what the agent was asked for, and reading it through a single
+function that can be tested against the shape the schema promises.
+
+Retry itself is unit-tested, guarded, and **not yet observed firing in a live run** — no
+misplacement occurred in the sprint that exercised this build.
+
+## [2.6.2] — 2026-08-20
+
+Two defects that fell out of running 2.6.1 rather than reading it, both in the family
+ADR-0009 named: the harness had the fact and took a report instead.
+
+### Fixed
+- **A story's record could disagree with git about where its work lived** (`lib/workflows/_shared/stamp_story_facts.mjs`, new): the PR stage is handed the whole `SprintStoryReturn` to fill in, so a story's slug and branch came back as whatever that agent chose — though the pipeline assigned both before it ran. Observed: a story implemented on its own epic-namespaced branch came back naming the **release** branch, which is a reasonable thing for a stage whose last act is a merge to say, and is not where the story lives. Slug and branch are now stamped from the pipeline's values. Status, commits and blockers stay the agent's — it is the only party that watched the merge.
+- **Orphaned harness refs accumulated a few per sprint** (`lib/workflows/_shared/prune_story_worktrees.mjs`): the harness parks each new worktree on a `worktree-<run>-<n>` branch at the repository's default branch; an implement agent moves the worktree to its story branch and leaves the ref behind. Teardown now deletes such a ref — but only when its commit is reachable from a ref that is not itself a `worktree-*` branch, so the commit survives the ref. One carrying commits nothing else contains is retained, being the only handle on them.
+
+### Changed
+- **A correction is reported, not silently applied**: when a returned record disagrees with what the pipeline assigned, the mismatch is logged naming both values. A silent correction hides the drift that produced it — the same reasoning that governs ADR-0008's dependency-escalation reconciliation.
+
+### Added
+- ADR-0011 records the decision and the mechanism behind a mispositioned stage.
+- Three structural guards that the PR record is stamped, that the stamp reads the branch from `storyBranch` rather than any report, and that a correction is logged. All three were mutation-tested: each fails by name when its property is removed.
+- 14 unit tests across the two modules.
+
+### Note
+Diagnosis worth keeping: because every fresh worktree is parked at the **default
+branch**, a stage that fails to reposition itself does not land somewhere arbitrary — it
+lands on `main`, silently. That is how a verify stage in the 2.6.1 proof run came to read
+`main` while believing it read its story's code. `assert_tree_identity` caught it and
+classified it `infrastructure-failed` rather than letting a verdict be rendered against
+the wrong tree. An infrastructure failure is still not retried, which is what turned that
+catch into a lost story; retry remains open.
+
+## [2.6.1] — 2026-08-20
+
+Closes debrief finding F5 — the orphaned worktrees. A reported run left 25 worktrees
+and roughly 65GB behind, because worktree mode created two worktrees per story and
+nothing ever reclaimed them: the Workflow tool releases a worktree only when it is
+*unchanged*, and a story's worktree always carries commits.
+
+Fixing it is mostly a question of what NOT to delete. A repository holds worktrees
+this sprint never created — concurrent sprints, other agents' workspaces, the user's
+own checkouts — and a blanket prune takes all of them.
+
+### Fixed
+- **A worktree-mode sprint now reclaims the worktrees it created** (`lib/workflows/_shared/prune_story_worktrees.mjs`, new): a worktree is removed only when it sits under the harness's own `.claude/worktrees/` directory AND is identifiably this sprint's — checked out on a story branch that landed, or detached at a commit already merged into the release branch. The second clause is what catches the verify worktrees, which carry no branch to match on, and what keeps a **concurrent** sprint safe: its worktrees sit at commits not yet merged here, so they fail the ancestry test. A story that did not land keeps its worktree, so the failure stays inspectable. Removal takes the checkout, never the branch; commits stay reachable.
+
+### Changed
+- **The teardown rule runs in the pipeline, not in a prompt** (`lib/workflows/sprint_pipeline.js`): a `teardown` probe agent reports `git worktree list --porcelain` and which detached HEADs are ancestors of the release branch; `selectRemovableWorktrees` decides; a second agent is handed exact paths and no discretion. Describing the rule in prose and trusting an agent to apply it would have repeated the defect ADR-0009 was written about — and would have made the module dead code, which is the shape of the last four defects this suite shipped.
+- **`teardown` joins the stage tier table** (`lib/workflows/_shared/resolve_agent_tier.mjs`): cheapest model, low effort. Both calls are mechanical.
+
+### Added
+- ADR-0010 records the decision and why selection is scoped rather than blanket.
+- `test/teardown_prune_scoping.test.js` — four structural guards that the teardown prompt is built from `pruneWorktreeCommands` and can never emit an unscoped removal.
+- `prune_story_worktrees.test.mjs` — ten unit tests over the selection rule, including "leaves a concurrent sprint's worktree alone" and "never reclaims a worktree outside `.claude/worktrees/`".
+
+### Verified
+Two live worktree-mode sprints, neither passing `isolationStrategy`, so the gate
+selected worktree mode on its own. Story branches were namespaced per epic, verify
+worktrees detached correctly, and merges serialized. Teardown then removed exactly
+the landed story's two worktrees, left the seven unrelated workspaces and the main
+tree untouched, and **retained** the worktree of a story that failed — a retention
+path exercised by an unplanned infrastructure failure rather than by design. The
+worktree listing after the sprint was identical to the listing before it.
+
 ## [2.6.0] — 2026-08-20
 
 Closes the three cheapest findings from a 46-story production run's debrief. That
