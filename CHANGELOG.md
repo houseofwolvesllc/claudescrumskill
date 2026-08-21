@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.1] — 2026-08-20
+
+An override that costs a run its parallelism now says so. Diagnosed from a real
+project, not from reading the code.
+
+### Fixed
+- **Forcing `serial-in-tree` was recorded as a source, never as a cost** (`lib/workflows/_shared/detect_repo_layout.mjs`): an `isolationStrategy` override does not merely pick a strategy, it **suppresses the gate**. A project whose gate resolves cleanly to worktree — npm lockfile, resolvable main tree, copy-on-write filesystem, viable provisioning `[clone, install]` — ran every sprint serially anyway, and the operator reasonably concluded parallelism "was not baked in yet." It was. Something upstream had filled in the argument the skill surface documents as optional, and nothing in the run contradicted that conclusion. A forced serial on a repository the gate would have run in parallel now warns that stories will run one at a time, names the provisioning that was available so the claim is checkable, and says to omit the argument.
+- **The skill surface permitted the argument instead of prohibiting it** (`skills/project-orchestrate/SKILL.md`): a model filling in an invocation block supplies the fields it is shown, and "optional" is not a deterrent. The argument now leads with **DO NOT SET THIS unless the user explicitly asked**, states that setting it suppresses the gate, and names what forcing serial gives up. Guarded by `test/isolation_override_guidance.test.js`.
+
+### Note
+The symmetric warning already existed in the other direction — forcing worktree over
+dependencies nothing provisions says so plainly. Forcing serial was the quiet one, and it
+stayed quiet because it never fails: it just costs wall-clock on every story, on every
+run, invisibly. That asymmetry is the whole defect.
+
+Worth recording how this was found. Three theories were wrong before the evidence
+arrived — twice the cause was assumed to be a stale install, and the install turned out to
+carry the gate. One diagnostic proposed along the way could never have worked at all,
+because the narrator's log output is not persisted in the transcripts it told the operator
+to grep. What settled it was executing the gate against the real repository and reading
+what it returned.
+
 ## [2.7.0] — 2026-08-20
 
 A caught problem should not become a lost story. The harness had been detecting its
