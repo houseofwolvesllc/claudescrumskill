@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.7.0] — 2026-08-20
+
+A caught problem should not become a lost story. The harness had been detecting its
+own placement errors and then reporting them as the story's outcome.
+
+### Added
+- **Verification is given a second tree before its misplacement is called a failure** (`lib/workflows/_shared/retry_placement.mjs`, new): a stage that read the wrong tree discovered where the harness put it, not whether the code works. Retrying is sound here because of two properties that do **not** hold generally — verification only READS, so a second attempt commits, opens and merges nothing; and in worktree mode each attempt is given a fresh worktree, so the retry is a genuinely different placement rather than the same one repeated. A misplacement that outlives the attempts is reported as having been retried, so a systematic cause reads differently from one unlucky placement.
+- ADR-0012 records the boundary.
+- `inline_manifest_coverage.test.mjs` — every inlined module keeps a colocated unit test. Once inlined a module cannot be imported, so that test is the only place its behaviour is ever exercised.
+
+### Fixed
+- **A blocked story reported `blockers: [null, null]`** (`lib/workflows/_shared/describe_finding.mjs`, new): the review verdict's findings were declared as a bare `{ type: 'array' }` — an item shape promising nothing — and the pipeline read `finding.title` off findings that carry `short_summary`, `summary` and `file`. Every blocker line serialized to null. In the run that surfaced it the review had said exactly what was wrong ("require() cannot load .mjs ES modules — test will crash") and the story was told it was blocked and never told why. The finding item is now declared in the schema and read through one function tested against that shape.
+- **The review stage was aimed by a report rather than by the pipeline**: `buildReviewPrompt` interpolated `impl.branch` into `git diff <release>...<branch>`. Unlike verification, review has **no** identity assertion, so a drifted branch would have made it diff the wrong refs and report on code that is not the story's — silently. It now diffs the branch `storyBranch` names.
+- **Every outcome path states the branch** rather than repeating the implement report: `reviewBlocked`, `verifyBlocked`, `dependencySetupFailed` and `treeIdentityFailed` all carried `impl.branch`. v2.6.2 stamped only the finalize path; this completes it.
+
+### Note
+The blocker defect is the **fifth** instance of one shape: a value consumed that nothing
+supplies. It survives unit tests because a test constructs the object it wants and passes
+it in directly, so the field is present exactly where it is read and absent only in
+production. Two things stop it, and both are in this release: naming the shape in the
+schema so what is read is what the agent was asked for, and reading it through a single
+function that can be tested against the shape the schema promises.
+
+Retry itself is unit-tested, guarded, and **not yet observed firing in a live run** — no
+misplacement occurred in the sprint that exercised this build.
+
 ## [2.6.2] — 2026-08-20
 
 Two defects that fell out of running 2.6.1 rather than reading it, both in the family

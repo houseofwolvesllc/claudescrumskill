@@ -17,10 +17,11 @@ the context, the decision, and what it cost.
 | [0009](0009-verify-claims-not-attestations.md) | Gate a phase on its own artifact rather than on the orchestrator's claim, and point verification at a commit rather than a branch. |
 | [0010](0010-worktree-teardown.md) | Reclaim only the worktrees a sprint can prove it created — under the harness's directory and on a landed branch or a merged commit — never by a blanket prune. |
 | [0011](0011-the-pipeline-states-the-facts-it-owns.md) | Stamp a story's slug and branch from the pipeline's own values rather than reading them back off the reporting agent, and log any disagreement. |
+| [0012](0012-retry-placement-not-implementation.md) | Retry a verification that read the wrong tree, because it only reads and each attempt gets a fresh worktree — and never retry an implement, which commits. |
 
-## The verification arc — 0006 through 0011
+## The verification arc — 0006 through 0012
 
-ADRs 0006 through 0011 are one argument made across six releases: **the harness should
+ADRs 0006 through 0012 are one argument made across seven releases: **the harness should
 check rather than trust.** Each removes an assumption the suite had been standing on.
 
 - **0006** stops assuming a workflow script runs in the environment its author had, and
@@ -36,6 +37,8 @@ check rather than trust.** Each removes an assumption the suite had been standin
   a rule that can name why each worktree was safe to remove.
 - **0011** stops assuming a reporting stage knows facts the pipeline itself assigned, and
   states them rather than reading them back.
+- **0012** stops assuming a caught infrastructure failure has to cost the story it was
+  caught in, and retries the stages whose only act is to read.
 
 Read in order, they are the record of how this suite learned to distrust its own
-accounting. A reader who only wants that story can read these six and skip the rest.
+accounting. A reader who only wants that story can read these seven and skip the rest.
