@@ -421,11 +421,11 @@ sessionModel:       <optional 'haiku' | 'sonnet' | 'opus' — the tier you are r
                      when this is set; omit it and they inherit the session tier silently.>
 ```
 
-Wait for the workflow to return. The return is `SprintStoryReturn[]` — one entry per completed (or blocked / failed / infrastructure-failed) story per `lib/workflows/schemas/SprintStoryReturnSchema.json`.
+Wait for the workflow to return. The return is `{ stories, _telemetry }` per `lib/workflows/schemas/SprintPipelineReturnSchema.json`: `stories` is one `SprintStoryReturn` per completed (or blocked / failed / infrastructure-failed) story (`lib/workflows/schemas/SprintStoryReturnSchema.json`), and `_telemetry` is an out-of-band array of stage-timing intervals the reporting layer renders. The leading underscore marks `_telemetry` out-of-band: iterate `stories` and skip it.
 
 #### Post-workflow persistence
 
-For each entry in the workflow's return:
+For each entry in the workflow's return `stories` array:
 
 - `status: "done"` — Update the story file's frontmatter to `status: done`. Record `branch`, `prUrl` (github) or merge commit (local), and commit SHAs in the state file's "Current Sprint Stories" table.
 - `status: "blocked"` — Record `blockers[]` and `reason` in the state file. Add the `blocked` label to the story (or mark blocked locally). Continue.

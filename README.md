@@ -559,7 +559,7 @@ See [ADR-0008](docs/adrs/0008-worktree-dependency-provisioning.md) for the reaso
 
 ### Schemas at `lib/workflows/schemas/`
 
-JSON Schema Draft 2020-12. The cross-skill type system: `SpecSchema`, `EpicSchema`, `StorySchema`, `EmulationFindingSchema`, `ReviewVerdictSchema`, `SprintStoryReturnSchema`, `ScaffoldOutputSchema`, `PRDFrontmatterSchema`. Schemas live alongside workflows and are referenced from `agent({ schema: ... })` calls.
+JSON Schema Draft 2020-12. The cross-skill type system: `SpecSchema`, `EpicSchema`, `StorySchema`, `EmulationFindingSchema`, `ReviewVerdictSchema`, `SprintStoryReturnSchema`, `SprintPipelineReturnSchema`, `ScaffoldOutputSchema`, `PRDFrontmatterSchema`. Schemas live alongside workflows: most are referenced from `agent({ schema: ... })` calls, while `SprintPipelineReturnSchema` describes `sprint_pipeline.js`'s own top-level return (its `stories` results plus out-of-band `_telemetry`).
 
 ### Adding a workflow
 
