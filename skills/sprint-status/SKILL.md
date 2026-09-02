@@ -174,17 +174,22 @@ Both report procedures render this section identically, appended after **Release
 Branch Health**.
 
 Render it **only when `telemetry.report` is `true`** (from `config.json`;
-default `true` when the key is absent — see Before You Start). When
-`telemetry.report` is `false`, omit the section entirely: render nothing about
-timing. The `_telemetry` payload is unaffected either way — this gate governs
-rendering only; never read, mutate, or otherwise disturb `_telemetry` when the
-flag is off.
+default `true` when the key is absent — see Before You Start) **and the persisted
+artifact exists**. When `telemetry.report` is `false`, omit the section entirely:
+render nothing about timing, and do not read the artifact.
 
-**Source.** The sprint pipeline returns an out-of-band `_telemetry` array
-(`lib/workflows/schemas/SprintPipelineReturnSchema.json`) — one interval per
-stage, each `{ label, phase, startedAt, endedAt }` with ISO-8601 timestamps.
-Diff a single interval as `Date.parse(endedAt) - Date.parse(startedAt)`
-(milliseconds); render durations in a human unit (e.g. minutes).
+**Source.** Read the persisted stage-timing artifact at
+`.claude-scrum-skill/reports/stage-timing/latest.json` — the array
+`project-orchestrate` writes after each pipeline run (see its [Stage
+Timing](../project-orchestrate/SKILL.md#stage-timing) section), one interval per
+stage, each `{ label, phase, startedAt, endedAt }` with ISO-8601 timestamps. This
+status report runs outside the pipeline and cannot see the in-memory `_telemetry`
+return, so the persisted file is the only source.
+**When the artifact is absent, omit the section entirely** — no error, no empty
+table: a status report run before any pipeline has persisted timings simply has
+nothing to show. Diff a single interval as
+`Date.parse(endedAt) - Date.parse(startedAt)` (milliseconds); render durations in
+a human unit (e.g. minutes).
 
 **The two run-level metrics.** Defined once here; later stories reference these
 definitions rather than restating them:
@@ -197,10 +202,14 @@ definitions rather than restating them:
   to end.
 
 Report both, distinctly labeled, so parallel overlap is never double-counted as
-elapsed time. Concurrent stages share wall-clock yet each still adds its full
-cost, so **critical-path wall-clock <= summed-stage cost whenever stages
-overlap**; the two are equal only when stages ran strictly sequentially with no
-overlap.
+elapsed time. Concurrent (overlapping) stages share wall-clock yet each still
+adds its full cost, so **critical-path wall-clock <= summed-stage cost whenever
+stages overlap**. Untimed idle gaps between intervals push the other way: when a
+story waits for a slot or a blocker, or the orchestrator works between stages,
+that elapsed time falls inside the wall-clock span but inside no interval's cost,
+so **critical-path wall-clock can exceed summed-stage cost when gaps separate the
+intervals**. The two are equal only when the intervals ran strictly sequentially
+with no gaps and no overlap.
 
 **Per-group breakdown.** Group the intervals by `phase` and, separately, by
 `label`. For each group report summed duration, stage count, and share — where
@@ -210,7 +219,7 @@ share is the group's summed duration over the summed-stage cost.
 ### Stage Timing
 
 **Summed-stage cost:** <sum of endedAt - startedAt over all stages>
-**Critical-path wall-clock:** <max endedAt - min startedAt> (<= summed-stage cost when stages overlap)
+**Critical-path wall-clock:** <max endedAt - min startedAt> (equal to summed cost only for strictly-sequential stages with no gaps)
 
 | Phase | Duration | Count | Share |
 |-------|----------|-------|-------|
