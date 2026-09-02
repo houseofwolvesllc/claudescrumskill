@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/houseofwolvesllc/claudescrumskill/schemas/SprintPipelineReturnSchema.json",
+  "title": "SprintPipelineReturnSchema",
+  "description": "Top-level return of sprint_pipeline.js. The per-story results the calling skill iterates ride under `stories`; the run's stage timings ride alongside them under `_telemetry`, whose leading underscore marks it out-of-band so consumers iterating story results skip it.",
+  "type": "object",
+  "required": ["stories", "_telemetry"],
+  "properties": {
+    "stories": {
+      "type": "array",
+      "items": {
+        "$ref": "https://github.com/houseofwolvesllc/claudescrumskill/schemas/SprintStoryReturnSchema.json"
+      },
+      "description": "One SprintStoryReturn per completed (or blocked / failed / infrastructure-failed) story. This is the array the calling skill iterates to persist results."
+    },
+    "_telemetry": {
+      "type": "array",
+      "description": "Stage timings collected by the pipeline's timer — one interval per agent() call the run made, including calls that returned null or threw. Out-of-band: the reporting layer renders it; consumers iterating story results ignore it.",
+      "items": {
+        "type": "object",
+        "required": ["label", "phase", "startedAt", "endedAt"],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "The stage's label, e.g. 'impl:auth-endpoint' or 'detect-layout'."
+          },
+          "phase": {
+            "type": "string",
+            "description": "The stage's phase, e.g. 'Implement', 'Verify', 'Teardown'."
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 wall-clock instant the stage began, from Date, so intervals from concurrent stories compose onto one timeline."
+          },
+          "endedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO-8601 wall-clock instant the stage ended, stamped in a finally so success, null-return, and throw each record exactly one interval."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}
