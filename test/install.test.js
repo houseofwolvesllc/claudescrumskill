@@ -27,6 +27,7 @@ const DEFAULT_CONFIG = {
     context: '.claude-scrum-skill/context'
   },
   scaffold: { two_pass_threshold_words: 5000, design_spike_enabled: true },
+  telemetry: { report: true },
   jira: { project_key: '' },
   trello: { board_id: '' }
 };
@@ -129,6 +130,21 @@ test('installConfig on upgrade retains a customized paths.specs and a non-empty 
   assert.equal(result.action, 'merged');
   assert.equal(written.paths.specs, 'docs/specs');
   assert.equal(written.jira.project_key, 'SCRUM');
+});
+
+test('installConfig on upgrade keeps a user telemetry.report of false against the true default', () => {
+  const dir = freshTempDir();
+  const defaultPath = writeDefault(dir);
+  const destPath = path.join(dir, 'config.json');
+  const userConfig = structuredClone(DEFAULT_CONFIG);
+  userConfig.telemetry.report = false;
+  fs.writeFileSync(destPath, `${JSON.stringify(userConfig, null, 2)}\n`);
+
+  const result = installConfig(defaultPath, destPath);
+
+  const written = JSON.parse(fs.readFileSync(destPath, 'utf8'));
+  assert.equal(result.action, 'merged');
+  assert.equal(written.telemetry.report, false);
 });
 
 test('installConfig on upgrade introduces a default key the user file lacked', () => {

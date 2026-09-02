@@ -10,6 +10,9 @@
     "two_pass_threshold_words": 5000,
     "design_spike_enabled": true
   },
+  "telemetry": {
+    "report": true
+  },
   "jira": {
     "project_key": ""
   },
