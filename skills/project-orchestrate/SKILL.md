@@ -432,6 +432,25 @@ For each entry in the workflow's return `stories` array:
 - `status: "failed"` — The story's code did not work. Same persistence as blocked, plus log the failure for sprint-release to roll over.
 - `status: "infrastructure-failed"` — The tree failed the story: it never obtained its dependencies, or verification was not reading the tree it was placed at. Either way the story's code was never exercised there. Record `reason` — it names what the tree could not do and what it reported — in the state file, and roll the story over for sprint-release to re-run once the tree can be provisioned. Do NOT mark the story blocked or failed: there is no defect here to investigate, and recording one sends the next reader after a bug that does not exist. If several stories in a run name a dependency strategy in their reasons, that strategy is the thing to change (see `dependencyStrategy` above), not the stories.
 
+#### Persist stage-timing telemetry
+
+After handling the `stories` array, persist the return's out-of-band `_telemetry`
+to `.claude-scrum-skill/reports/stage-timing/latest.json` (plus a timestamped
+sibling) so the out-of-band reporting skills — `sprint-status` and
+`sprint-release` — can render it. They run outside the pipeline and cannot see
+the in-memory return, so this durable artifact is their only source. The write is
+done here, in the orchestrator SKILL layer, which uses normal file tools; the
+workflow runtime cannot touch the filesystem (ADR-0006), so persistence never
+lives inside `sprint_pipeline.js`.
+
+Write the `_telemetry` array verbatim — one `{ label, phase, startedAt, endedAt }`
+interval per stage — as JSON to two files under
+`.claude-scrum-skill/reports/stage-timing/` (create the directory if absent):
+
+- `latest.json` — the stable path the reporting skills read; overwritten each run.
+- `<UTC-timestamp>.json` (e.g. `20260902T150721Z.json`) — a timestamped sibling
+  that preserves each run's timings as an append-only history.
+
 #### Concurrency, isolation, and barriers
 
 The workflow resolves **one** isolation strategy for the whole batch at start
@@ -1176,8 +1195,12 @@ Then run the legacy unified-multi-spec flow. The queue state file is still creat
 ## Stage Timing
 
 The post-run summary (see **Step 3 → Progress updates**) renders this section
-after each sprint's summary line, from the workflow return's out-of-band
-`_telemetry` array.
+after each sprint's summary line. It renders from the workflow return's
+**live, in-memory** `_telemetry` array — the same timings Step 3 persists to the
+stage-timing artifact (see **Post-workflow persistence → Persist stage-timing
+telemetry**). Rendering here and persisting there describe the SAME intervals;
+the persisted artifact is what `sprint-status` and `sprint-release` read later,
+out of band.
 
 Render it **only when `telemetry.report` is `true`** (from `config.json`;
 default `true` when the key is absent — see Before You Start). When
@@ -1186,13 +1209,14 @@ untouched — this gate governs rendering only. The workflow itself never gates 
 this key (ADR-0006); it always returns `_telemetry`, and the reporting layer
 decides whether to render.
 
-The section is identical across every reporting skill. Render it exactly as
-`sprint-status` specifies in its [Stage Timing](../sprint-status/SKILL.md#stage-timing)
-section — same source (`_telemetry`), same per-phase and per-label breakdown,
-and the same single authoritative definition of the two run-level metrics
-(**summed-stage cost** and **critical-path wall-clock**) established there. Do
-not restate those definitions here; reference them so the three consumers cannot
-diverge.
+The rendered section is identical across every reporting skill — only the source
+differs (here, the live `_telemetry`; in `sprint-status` and `sprint-release`,
+the persisted artifact above). Render it exactly as `sprint-status` specifies in
+its [Stage Timing](../sprint-status/SKILL.md#stage-timing) section — same
+per-phase and per-label breakdown, and the same single authoritative definition
+of the two run-level metrics (**summed-stage cost** and **critical-path
+wall-clock**) established there. Do not restate those definitions here; reference
+them so the three consumers cannot diverge.
 
 ---
 

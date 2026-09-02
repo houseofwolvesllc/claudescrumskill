@@ -388,16 +388,21 @@ Both release procedures render this section identically, appended after
 **Cleanup** in the release report.
 
 Render it **only when `telemetry.report` is `true`** (from `config.json`;
-default `true` when the key is absent — see Before You Start). When
-`telemetry.report` is `false`, omit the section entirely and leave the sprint
-pipeline's out-of-band `_telemetry` payload untouched — this gate governs
-rendering only; never read, mutate, or otherwise disturb `_telemetry` when the
-flag is off.
+default `true` when the key is absent — see Before You Start) **and the persisted
+artifact exists**. When `telemetry.report` is `false`, omit the section entirely
+and do not read the artifact — this gate governs rendering only. **When the
+artifact is absent, omit the section entirely** — no error, no empty table.
+
+**Source.** Read the persisted stage-timing artifact at
+`.claude-scrum-skill/reports/stage-timing/latest.json` — the array
+`project-orchestrate` writes after each pipeline run. This release report runs
+outside the pipeline and cannot see the in-memory `_telemetry` return, so the
+persisted file is the only source.
 
 The section is identical across every reporting skill. Render it exactly as
 `sprint-status` specifies in its [Stage Timing](../sprint-status/SKILL.md#stage-timing)
-section — same source (`_telemetry`), same per-phase and per-label breakdown,
-and the same single authoritative definition of the two run-level metrics
+section — same persisted source, same per-phase and per-label breakdown, and the
+same single authoritative definition of the two run-level metrics
 (**summed-stage cost** and **critical-path wall-clock**) established there. Do
 not restate those definitions here; reference them so the three consumers cannot
 diverge.
