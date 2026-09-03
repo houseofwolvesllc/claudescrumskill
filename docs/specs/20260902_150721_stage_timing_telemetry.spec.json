@@ -1,0 +1,167 @@
+{
+  "title": "Stage-Timing Telemetry for Workflow Scripts",
+  "overview": "Add one injected, unit-tested timing wrapper that every workflow agent() call routes through, recording per-stage ISO-8601 intervals {label, phase, startedAt, endedAt}. The workflow always returns them on a _telemetry field; a telemetry.report key in config.json (default true), read only at the SKILL.md layer, gates whether the main thread renders the timing section. Collection is unconditional and flag-free; presentation is config-gated. Makes per-stage wall-clock answerable on every real run — including parallel runs where transcript archaeology cannot map stages — without changing what any stage does.",
+  "objectives": {
+    "primary": [
+      "Capture per-stage wall-clock as ISO-8601 intervals via one reusable, injectable, unit-tested timing wrapper and return them on a workflow _telemetry field, with zero change to stage behavior.",
+      "Gate only the rendering of timings behind a telemetry.report config key read at the SKILL.md layer; never gate collection and never add a boolean flag argument to a workflow."
+    ],
+    "secondary": [
+      "Render a stage-timing section (summed-stage cost and critical-path wall-clock, both derived from intervals) in sprint-status, sprint-release, and the project-orchestrate post-run summary.",
+      "Keep the timer script-agnostic so extending it to adversarial_verify.js and elaborate_epics.js later is trivial, without wiring scripts no consumer yet renders."
+    ]
+  },
+  "epics": [
+    {
+      "name": "Telemetry Capture",
+      "slug": "telemetry-capture",
+      "description": "A new pure factory lib/workflows/_shared/stage_timing.mjs exports createStageTimer(agentFn) returning { timedAgent, timings }. timedAgent awaits the injected agentFn, records startedAt before and endedAt after (ISO-8601 via Date), appends the interval whether the call succeeds, returns null, or throws (finally, then re-throw), and returns the result unchanged. Registered in INLINE_MANIFEST, expanded by regen_workflow_inlines.mjs, guarded by inline_sync.test.mjs, and covered by a tests-first stage_timing.test.mjs.",
+      "subdomain": "supporting",
+      "depends_on": [],
+      "shared_design_concerns": [
+        "ADR-0006: workflow runtime has no import/fs/child_process; use only Date (a builtin).",
+        "agentFn is injected, not a closed-over global, so the module is unit-testable under node --test where the runtime agent global is absent.",
+        "ISO-8601 wall-clock timestamps (not performance.now()) so intervals from concurrent stories compose on one timeline, matching the artifact_freshness convention.",
+        "Inline/regen/drift discipline: register in inline_manifest.mjs and keep the inlined block byte-identical to canonical."
+      ],
+      "slice": { "start_line": 1, "end_line": 1 },
+      "stories": [
+        {
+          "title": "Create createStageTimer factory with tests-first timing capture",
+          "slug": "create-stage-timer",
+          "acceptance_criteria": [
+            "stage_timing.test.mjs is written first (red) and covers: one interval per call with the call's label/phase and startedAt <= endedAt in ISO-8601; result returned unchanged including a null result; interval recorded AND error re-thrown when agentFn throws; intervals accumulate across multiple and concurrent calls; empty run yields [].",
+            "lib/workflows/_shared/stage_timing.mjs exports createStageTimer(agentFn) returning { timedAgent, timings } per the spec's reference sketch.",
+            "endedAt is stamped in a finally so success, null-return, and throw paths all record exactly one interval; the throw path re-throws.",
+            "Uses only Date; no import/require/fs/child_process; all tests pass under node --test."
+          ],
+          "technical_context": "New module lib/workflows/_shared/stage_timing.mjs and colocated lib/workflows/_shared/stage_timing.test.mjs. Follow _shared conventions (snake_case.mjs file, camelCase exports). agentFn injected for testability.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl"
+        },
+        {
+          "title": "Register stage_timing in inline manifest and guard drift",
+          "slug": "wire-stage-timer-inline",
+          "acceptance_criteria": [
+            "stage_timing is added to the sprint_pipeline.js entry in lib/workflows/_shared/inline_manifest.mjs.",
+            "bin/regen_workflow_inlines.mjs is run and expands the canonical stage_timing block into sprint_pipeline.js with BEGIN/END markers.",
+            "inline_sync.test.mjs passes and asserts the inlined stage_timing block is byte-identical to canonical; the full test suite is green."
+          ],
+          "technical_context": "Manifest entry plus regen run. Do not hand-edit the inlined block; regenerate it. Only sprint_pipeline.js is registered in this spec (see E2 scope decision).",
+          "points": 2,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl",
+          "blocked_by": ["create-stage-timer"]
+        }
+      ]
+    },
+    {
+      "name": "Pipeline Telemetry Return",
+      "slug": "pipeline-telemetry-return",
+      "description": "Route every agent() call in sprint_pipeline.js through timedAgent built once from createStageTimer(agent), and attach the collected intervals to the workflow's return value on a top-level _telemetry field. Extend the workflow return schema so _telemetry is a described, validated field. Verify the current return shape first so the addition is non-breaking.",
+      "subdomain": "supporting",
+      "depends_on": ["telemetry-capture"],
+      "shared_design_concerns": [
+        "Transparency: no change to stage behavior, ordering, inputs, outputs, or error semantics.",
+        "Return-shape reconciliation: confirm the top-level return is an object before adding _telemetry; if it is a bare array, reconcile so the addition is non-breaking and update the consumer read.",
+        "The _ prefix marks _telemetry as out-of-band so consumers iterating story results skip it."
+      ],
+      "slice": { "start_line": 1, "end_line": 1 },
+      "stories": [
+        {
+          "title": "Route sprint_pipeline stages through the timer and return _telemetry",
+          "slug": "pipeline-return-telemetry",
+          "acceptance_criteria": [
+            "The current top-level return shape of sprint_pipeline.js is verified; if it is a bare array it is reconciled to an object so _telemetry is additive and non-breaking (consumer read updated in step).",
+            "The timer is constructed once (const { timedAgent, timings } = createStageTimer(agent)) and every stage call (detect-layout, implement, review, verify, pr, reset, teardown) routes through timedAgent with its existing label/phase/tier opts.",
+            "The workflow return includes a top-level _telemetry array of the collected intervals; a stage that returns null or throws still contributes exactly one interval.",
+            "The return schema is extended to describe/validate _telemetry (array of {label, phase, startedAt, endedAt}); existing tests updated and the suite is green."
+          ],
+          "technical_context": "lib/workflows/sprint_pipeline.js and its return schema. No stage behavior changes. timings is the array returned by createStageTimer; attach at the single return site.",
+          "points": 5,
+          "executor": "claude",
+          "priority": "P1-high",
+          "persona": "impl",
+          "blocked_by": ["wire-stage-timer-inline"]
+        }
+      ]
+    },
+    {
+      "name": "Telemetry Reporting",
+      "slug": "telemetry-reporting",
+      "description": "Add a telemetry.report key (default true) to the config.json default, preserved by the install-time merge. The reporting SKILL.md layer (sprint-status, sprint-release, project-orchestrate summary) reads the key from ../shared/config.json and, when true, renders a stage-timing section from the workflow's _telemetry: per-phase summed duration/share/count, plus critical-path wall-clock (max endedAt - min startedAt) distinguished from summed-stage cost. The _telemetry payload is returned regardless of the key.",
+      "subdomain": "generic",
+      "depends_on": ["pipeline-telemetry-return"],
+      "shared_design_concerns": [
+        "ADR-0006: only the SKILL.md layer can read config.json; the key never reaches the workflow, and need not, since collection is unconditional.",
+        "Consistency: read telemetry.report exactly as scaffolding/paths.* are read; render is markdown-driven arithmetic over intervals.",
+        "Distinguish critical-path wall-clock from summed-stage cost so parallel overlap is not double-counted."
+      ],
+      "slice": { "start_line": 1, "end_line": 1 },
+      "stories": [
+        {
+          "title": "Add telemetry.report default to config.json and preserve on merge",
+          "slug": "config-telemetry-report",
+          "acceptance_criteria": [
+            "skills/shared/config.json default gains telemetry.report set to true (nested under telemetry, matching scaffold.design_spike_enabled nesting).",
+            "The bin/install.js merge preserves a user's existing telemetry.report value on reinstall, consistent with other keys.",
+            "Test/verification confirms a pre-existing user value is not overwritten by the default."
+          ],
+          "technical_context": "skills/shared/config.json and the existing config merge path in bin/install.js. No workflow reads this key.",
+          "points": 1,
+          "executor": "claude",
+          "priority": "P2-medium",
+          "persona": "ops",
+          "blocked_by": ["pipeline-return-telemetry"]
+        },
+        {
+          "title": "Render the stage-timing section in sprint-status",
+          "slug": "render-timing-sprint-status",
+          "acceptance_criteria": [
+            "sprint-status SKILL.md reads telemetry.report from ../shared/config.json.",
+            "When true, it renders a stage-timing section from the workflow _telemetry: per-phase/label summed duration, count, and share, plus overall critical-path wall-clock (max endedAt - min startedAt) and summed-stage cost.",
+            "When false, no timing section is rendered; the underlying _telemetry is unaffected.",
+            "Critical-path wall-clock <= summed-stage cost whenever any stages overlap."
+          ],
+          "technical_context": "skills/sprint-status/SKILL.md. Arithmetic over intervals is markdown-instructed (Claude computes), mirroring how scaffolding/paths keys are consumed.",
+          "points": 2,
+          "executor": "claude",
+          "priority": "P2-medium",
+          "persona": "impl",
+          "blocked_by": ["config-telemetry-report"]
+        },
+        {
+          "title": "Render the stage-timing section in sprint-release and orchestrate summary",
+          "slug": "render-timing-release-orchestrate",
+          "acceptance_criteria": [
+            "sprint-release SKILL.md and the project-orchestrate post-run summary read telemetry.report and render the same stage-timing section from _telemetry when true, omit when false.",
+            "The rendered numbers match the sprint-status computation (single shared definition of summed-stage cost vs critical-path wall-clock, described once and referenced).",
+            "Full test suite green; no behavior change when telemetry.report is false."
+          ],
+          "technical_context": "skills/sprint-release/SKILL.md and skills/project-orchestrate/SKILL.md summary section. Keep one authoritative description of the two metrics to avoid duplication across the three consumers.",
+          "points": 3,
+          "executor": "claude",
+          "priority": "P2-medium",
+          "persona": "impl",
+          "blocked_by": ["render-timing-sprint-status"]
+        }
+      ]
+    }
+  ],
+  "dependencies": [
+    "Existing inline/regen/drift machinery: lib/workflows/_shared/inline_manifest.mjs, bin/regen_workflow_inlines.mjs, lib/workflows/_shared/inline_sync.test.mjs.",
+    "config.json install-merge mechanism in bin/install.js.",
+    "sprint_pipeline.js current return shape and return schema."
+  ],
+  "design_concerns": [
+    "Return-shape reconciliation: sprint_pipeline.js's top-level return must be an object for _telemetry to be additive; a bare array requires a non-breaking reconciliation plus consumer update.",
+    "Scope-of-wiring sign-off: this spec wires only sprint_pipeline.js (the sole rendered consumer) per the Arbitration Rule, though the timer serves all three scripts; adversarial_verify.js and elaborate_epics.js wiring is deferred to Future Considerations. Confirm or promote them into pipeline-telemetry-return.",
+    "Config key shape: telemetry.report (nested) chosen to match existing nesting and leave room for future sub-keys; a flat telemetry boolean is the alternative.",
+    "No auto-tuning/control loop may consume timings (n=1 timings are noise); intra-stage timing is out of scope (would trust the actor's self-report)."
+  ],
+  "scaffold_mode": "single-pass",
+  "design_spike": false
+}

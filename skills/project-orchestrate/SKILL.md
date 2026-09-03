@@ -14,7 +14,7 @@ Fully autonomous project lifecycle driver. Plans sprints, executes stories via p
 0. **v2.0.0 runtime check.** Confirm the Claude Code **Workflow tool** is available in this session. v2.0.0 invokes workflow scripts at `<skills-root>/_workflows/*.js` for sprint execution, Pass 2 epic elaboration, multi-spec queueing, emulation finding verification, and the review gate. If the Workflow tool is absent, abort with: "v2.0.0 requires the Claude Code Workflow tool. Update Claude Code, or install the v1.8.x fallback (`npm install --save-dev @houseofwolvesllc/claude-scrum-skill@1.8.1`)." Do not proceed.
 1. Read `../shared/references/CONVENTIONS.md` for all project management standards. Follow these conventions exactly. Pay particular attention to **Epic Structure → Design-Spike Epic** — orchestration honors the design-spike epic's gating, so implementation work in a scoped run does not begin until the design-spike epic completes. Also note **Frontmatter Fields → PRD Document Frontmatter** — the `depends_on` field controls inter-spec execution order in sequential multi-path mode.
 1a. **Multi-path mode and new flags:** when invoked with 2+ existing-file paths, `/project-orchestrate` runs in sequential multi-path mode (each spec receives its own complete orchestration end-to-end). Two new flags are accepted: `--skip-on-pause` (default off; advance the queue when a spec hits a safety gate instead of pausing) and `--merged` (default off; treat multi-path inputs as one combined legacy multi-spec project with a deprecation warning). See **Input Parsing and Mode Detection** for the full classification and **Sequential Multi-Path Mode** for execution details.
-2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` and `paths.context` values (`paths.context` defaults to `.claude-scrum-skill/context` and is where Step 3 subagents look for per-epic CONTEXT.md files). Read `../shared/references/PROVIDERS.md` for provider-specific API commands when using a remote provider.
+2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` and `paths.context` values (`paths.context` defaults to `.claude-scrum-skill/context` and is where Step 3 subagents look for per-epic CONTEXT.md files). Also read the `telemetry.report` value (the `report` key under `telemetry`, default `true` when the key is absent) — it gates the post-run [Stage Timing](#stage-timing) section. Read `../shared/references/PROVIDERS.md` for provider-specific API commands when using a remote provider.
 3. Read the project's `CLAUDE.md` (if it exists) for project-specific rules. **All subagents you spawn must also read and follow `CLAUDE.md`** — include this instruction explicitly in every subagent prompt.
 3a. Read `../shared/references/ENGINEERING_BASELINE.md` — the universal engineering baseline (Clean Code, Test-Driven Development, and the simple-design Arbitration Rule). It applies to **all** work this orchestration drives, across every epic and story. Resolve its absolute path; you will pass it to the sprint pipeline as `baselinePath` so every implementation and review subagent follows it. Order of precedence: project `CLAUDE.md` > engineering baseline > situational guidance (`design-patterns`, `domain-modeling`).
 3b. **Subdomain classification gates situational guidance.** `/project-spec` classifies each epic as `core`, `supporting`, or `generic`, and `/project-scaffold` persists that classification into epic metadata: the `subdomain` field of each `_epic.md` frontmatter (local mode) or a `subdomain:<value>` label on the epic's issues (remote modes). Read the classification from that epic metadata — the single authoritative source — and do NOT re-derive it. At implementation time, only **`core`** epics receive the situational guidance skills (`design-patterns`, `domain-modeling`); `supporting`, `generic`, and unclassified epics get the baseline only. The two guidance files ship in the non-registered `_guidance/` directory — the same mechanism `_workflows/` uses, where the underscore prefix keeps Claude Code from registering them as user-facing skills. Their absolute paths are `<skills-root>/_guidance/design-patterns/SKILL.md` and `<skills-root>/_guidance/domain-modeling/SKILL.md`, where `<skills-root>` is the parent directory of this SKILL.md's parent (for a SKILL.md at `~/.claude/skills/project-orchestrate/SKILL.md`, `<skills-root>` is `~/.claude/skills`). The same algorithm works for global, local, and plugin install layouts. Pass these two paths as `situationalGuidance` for core epics — there is exactly one place to look, no `node_modules` hunting.
@@ -421,16 +421,35 @@ sessionModel:       <optional 'haiku' | 'sonnet' | 'opus' — the tier you are r
                      when this is set; omit it and they inherit the session tier silently.>
 ```
 
-Wait for the workflow to return. The return is `SprintStoryReturn[]` — one entry per completed (or blocked / failed / infrastructure-failed) story per `lib/workflows/schemas/SprintStoryReturnSchema.json`.
+Wait for the workflow to return. The return is `{ stories, _telemetry }` per `lib/workflows/schemas/SprintPipelineReturnSchema.json`: `stories` is one `SprintStoryReturn` per completed (or blocked / failed / infrastructure-failed) story (`lib/workflows/schemas/SprintStoryReturnSchema.json`), and `_telemetry` is an out-of-band array of stage-timing intervals the reporting layer renders. The leading underscore marks `_telemetry` out-of-band: iterate `stories` and skip it.
 
 #### Post-workflow persistence
 
-For each entry in the workflow's return:
+For each entry in the workflow's return `stories` array:
 
 - `status: "done"` — Update the story file's frontmatter to `status: done`. Record `branch`, `prUrl` (github) or merge commit (local), and commit SHAs in the state file's "Current Sprint Stories" table.
 - `status: "blocked"` — Record `blockers[]` and `reason` in the state file. Add the `blocked` label to the story (or mark blocked locally). Continue.
 - `status: "failed"` — The story's code did not work. Same persistence as blocked, plus log the failure for sprint-release to roll over.
 - `status: "infrastructure-failed"` — The tree failed the story: it never obtained its dependencies, or verification was not reading the tree it was placed at. Either way the story's code was never exercised there. Record `reason` — it names what the tree could not do and what it reported — in the state file, and roll the story over for sprint-release to re-run once the tree can be provisioned. Do NOT mark the story blocked or failed: there is no defect here to investigate, and recording one sends the next reader after a bug that does not exist. If several stories in a run name a dependency strategy in their reasons, that strategy is the thing to change (see `dependencyStrategy` above), not the stories.
+
+#### Persist stage-timing telemetry
+
+After handling the `stories` array, persist the return's out-of-band `_telemetry`
+to `.claude-scrum-skill/reports/stage-timing/latest.json` (plus a timestamped
+sibling) so the out-of-band reporting skills — `sprint-status` and
+`sprint-release` — can render it. They run outside the pipeline and cannot see
+the in-memory return, so this durable artifact is their only source. The write is
+done here, in the orchestrator SKILL layer, which uses normal file tools; the
+workflow runtime cannot touch the filesystem (ADR-0006), so persistence never
+lives inside `sprint_pipeline.js`.
+
+Write the `_telemetry` array verbatim — one `{ label, phase, startedAt, endedAt }`
+interval per stage — as JSON to two files under
+`.claude-scrum-skill/reports/stage-timing/` (create the directory if absent):
+
+- `latest.json` — the stable path the reporting skills read; overwritten each run.
+- `<UTC-timestamp>.json` (e.g. `20260902T150721Z.json`) — a timestamped sibling
+  that preserves each run's timings as an append-only history.
 
 #### Concurrency, isolation, and barriers
 
@@ -492,6 +511,13 @@ The workflow surfaces structured progress via the Workflow tool's UI. Additional
 ```
 Sprint 2: 5/8 stories done (13/19 pts) — 2 blocked, 1 needs review
 ```
+
+When `telemetry.report` is `true` (from `config.json`; default `true` when the
+key is absent — see Before You Start), follow that summary line with the
+[Stage Timing](#stage-timing) section rendered from the workflow return's
+out-of-band `_telemetry` array. When `telemetry.report` is `false`, omit it and
+leave `_telemetry` untouched — the gate governs rendering only, and the workflow
+never gates on this key (ADR-0006).
 
 ### Step 4: Sprint Release
 
@@ -1163,6 +1189,34 @@ Proceeding with merged mode...
 ```
 
 Then run the legacy unified-multi-spec flow. The queue state file is still created (with `Mode: merged` in Meta) but tracks the merged invocation as a single combined orchestration rather than per-spec entries. Formal merged semantics — shared design-spike strategy, cross-spec dependency resolution, unified state file vs queue file — are deferred to a follow-up spec.
+
+---
+
+## Stage Timing
+
+The post-run summary (see **Step 3 → Progress updates**) renders this section
+after each sprint's summary line. It renders from the workflow return's
+**live, in-memory** `_telemetry` array — the same timings Step 3 persists to the
+stage-timing artifact (see **Post-workflow persistence → Persist stage-timing
+telemetry**). Rendering here and persisting there describe the SAME intervals;
+the persisted artifact is what `sprint-status` and `sprint-release` read later,
+out of band.
+
+Render it **only when `telemetry.report` is `true`** (from `config.json`;
+default `true` when the key is absent — see Before You Start). When
+`telemetry.report` is `false`, omit the section entirely and leave `_telemetry`
+untouched — this gate governs rendering only. The workflow itself never gates on
+this key (ADR-0006); it always returns `_telemetry`, and the reporting layer
+decides whether to render.
+
+The rendered section is identical across every reporting skill — only the source
+differs (here, the live `_telemetry`; in `sprint-status` and `sprint-release`,
+the persisted artifact above). Render it exactly as `sprint-status` specifies in
+its [Stage Timing](../sprint-status/SKILL.md#stage-timing) section — same
+per-phase and per-label breakdown, and the same single authoritative definition
+of the two run-level metrics (**summed-stage cost** and **critical-path
+wall-clock**) established there. Do not restate those definitions here; reference
+them so the three consumers cannot diverge.
 
 ---
 

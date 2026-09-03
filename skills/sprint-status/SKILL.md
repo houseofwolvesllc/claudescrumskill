@@ -10,7 +10,7 @@ Generate a comprehensive status report for the active sprint.
 ## Before You Start
 
 1. Read `../shared/references/CONVENTIONS.md` for project management standards.
-2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` value (default: `.claude-scrum-skill/backlog`).
+2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` value (default: `.claude-scrum-skill/backlog`). Also read the `telemetry.report` value (the `report` key under `telemetry`, default `true` when the key is absent) — it gates the [Stage Timing](#stage-timing) section.
 3. Read `../shared/references/PROVIDERS.md` for provider-specific API commands when operating in remote mode.
 4. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in API commands and code — never in communication with the user.
 5. **If `scaffolding: "github"`:** Confirm the `gh` CLI is authenticated.
@@ -150,6 +150,8 @@ Group all sprint stories into:
 - **CI status:** <passing/failing>
 - **Merge conflicts:** <none/details>
 
+<Stage Timing section here when telemetry.report is true — see the Stage Timing section below>
+
 ### Risks & Notes
 <Any observations: pace concerns, scope creep, blocked items needing escalation>
 ```
@@ -163,3 +165,71 @@ Based on the status, suggest next actions:
 - If the sprint is behind pace, suggest scope reduction or story deferral
 - If blockers exist, suggest resolution paths
 - If the sprint is nearly complete, suggest running `/sprint-release`
+
+---
+
+## Stage Timing
+
+Both report procedures render this section identically, appended after **Release
+Branch Health**.
+
+Render it **only when `telemetry.report` is `true`** (from `config.json`;
+default `true` when the key is absent — see Before You Start) **and the persisted
+artifact exists**. When `telemetry.report` is `false`, omit the section entirely:
+render nothing about timing, and do not read the artifact.
+
+**Source.** Read the persisted stage-timing artifact at
+`.claude-scrum-skill/reports/stage-timing/latest.json` — the array
+`project-orchestrate` writes after each pipeline run (see its [Stage
+Timing](../project-orchestrate/SKILL.md#stage-timing) section), one interval per
+stage, each `{ label, phase, startedAt, endedAt }` with ISO-8601 timestamps. This
+status report runs outside the pipeline and cannot see the in-memory `_telemetry`
+return, so the persisted file is the only source.
+**When the artifact is absent, omit the section entirely** — no error, no empty
+table: a status report run before any pipeline has persisted timings simply has
+nothing to show. Diff a single interval as
+`Date.parse(endedAt) - Date.parse(startedAt)` (milliseconds); render durations in
+a human unit (e.g. minutes).
+
+**The two run-level metrics.** Defined once here; later stories reference these
+definitions rather than restating them:
+
+- **Summed-stage cost** — `sum over every stage of (endedAt - startedAt)`. Total
+  work performed across all stages, counting each stage once whether or not it
+  overlapped another.
+- **Critical-path wall-clock** — `max(endedAt) - min(startedAt)` across all
+  stages. Elapsed real time from the first stage to start until the last stage
+  to end.
+
+Report both, distinctly labeled, so parallel overlap is never double-counted as
+elapsed time. Concurrent (overlapping) stages share wall-clock yet each still
+adds its full cost, so **critical-path wall-clock <= summed-stage cost whenever
+stages overlap**. Untimed idle gaps between intervals push the other way: when a
+story waits for a slot or a blocker, or the orchestrator works between stages,
+that elapsed time falls inside the wall-clock span but inside no interval's cost,
+so **critical-path wall-clock can exceed summed-stage cost when gaps separate the
+intervals**. The two are equal only when the intervals ran strictly sequentially
+with no gaps and no overlap.
+
+**Per-group breakdown.** Group the intervals by `phase` and, separately, by
+`label`. For each group report summed duration, stage count, and share — where
+share is the group's summed duration over the summed-stage cost.
+
+```
+### Stage Timing
+
+**Summed-stage cost:** <sum of endedAt - startedAt over all stages>
+**Critical-path wall-clock:** <max endedAt - min startedAt> (equal to summed cost only for strictly-sequential stages with no gaps)
+
+| Phase | Duration | Count | Share |
+|-------|----------|-------|-------|
+| Implement | 12m | 3 | 60% |
+| Verify | 6m | 3 | 30% |
+| Teardown | 2m | 3 | 10% |
+
+| Label | Duration | Count | Share |
+|-------|----------|-------|-------|
+| impl:auth-endpoint | 5m | 1 | 25% |
+| verify:auth-endpoint | 3m | 1 | 15% |
+...
+```

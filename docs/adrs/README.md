@@ -18,6 +18,7 @@ the context, the decision, and what it cost.
 | [0010](0010-worktree-teardown.md) | Reclaim only the worktrees a sprint can prove it created — under the harness's directory and on a landed branch or a merged commit — never by a blanket prune. |
 | [0011](0011-the-pipeline-states-the-facts-it-owns.md) | Stamp a story's slug and branch from the pipeline's own values rather than reading them back off the reporting agent, and log any disagreement. |
 | [0012](0012-retry-placement-not-implementation.md) | Retry a verification that read the wrong tree, because it only reads and each attempt gets a fresh worktree — and never retry an implement, which commits. |
+| [0013](0013-telemetry-captured-by-the-runtime-reported-by-the-skill.md) | Capture stage timings unconditionally in the workflow return as intervals, and persist and render them in the skill layer gated by config, because the runtime can neither write files nor read config. |
 
 ## The verification arc — 0006 through 0012
 

@@ -10,7 +10,7 @@ Close out a sprint: summarize work, handle incomplete stories, open the release 
 ## Before You Start
 
 1. Read `../shared/references/CONVENTIONS.md` for project management standards.
-2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` value (default: `.claude-scrum-skill/backlog`).
+2. Read `../shared/config.json` to determine the scaffolding mode (`scaffolding` key: `"local"`, `"github"`, `"jira"`, or `"trello"`, default: `"local"`). If `"local"`, also read the `paths.backlog` value (default: `.claude-scrum-skill/backlog`). Also read the `telemetry.report` value (the `report` key under `telemetry`, default `true` when the key is absent) — it gates the [Stage Timing](#stage-timing) section of the release report.
 3. Read `../shared/references/PROVIDERS.md` for provider-specific API commands when operating in remote mode.
 4. **Terminology:** Always refer to milestones as **"epics"** in all user-facing text, summaries, and conversational output. The word "milestone" should only appear in API commands and code — never in communication with the user.
 5. **If `scaffolding: "github"`:** Confirm the `gh` CLI is authenticated.
@@ -121,6 +121,8 @@ Same format as GitHub mode, but without PR links. Instead report:
 
 ### Cleanup
 <same as GitHub mode>
+
+<Stage Timing section here when telemetry.report is true — see the Stage Timing section below>
 
 ### Next Steps
 1. Review changes on development branch
@@ -364,6 +366,8 @@ If stories remain, keep the epic open for the next sprint.
 - **Branches deleted:** <list of deleted branches, or "none">
 - **Remaining branches:** main, development
 
+<Stage Timing section here when telemetry.report is true — see the Stage Timing section below>
+
 ### Next Steps
 <If Scenario A (release → development):>
 1. **Review the release PR:** <link to PR>
@@ -375,6 +379,35 @@ If stories remain, keep the epic open for the next sprint.
 2. **Merge to main** when satisfied
 3. Run `/sprint-plan` to plan the next phase
 ```
+
+---
+
+## Stage Timing
+
+Both release procedures render this section identically, appended after
+**Cleanup** in the release report.
+
+Render it **only when `telemetry.report` is `true`** (from `config.json`;
+default `true` when the key is absent — see Before You Start) **and the persisted
+artifact exists**. When `telemetry.report` is `false`, omit the section entirely
+and do not read the artifact — this gate governs rendering only. **When the
+artifact is absent, omit the section entirely** — no error, no empty table.
+
+**Source.** Read the persisted stage-timing artifact at
+`.claude-scrum-skill/reports/stage-timing/latest.json` — the array
+`project-orchestrate` writes after each pipeline run. This release report runs
+outside the pipeline and cannot see the in-memory `_telemetry` return, so the
+persisted file is the only source.
+
+The section is identical across every reporting skill. Render it exactly as
+`sprint-status` specifies in its [Stage Timing](../sprint-status/SKILL.md#stage-timing)
+section — same persisted source, same per-phase and per-label breakdown, and the
+same single authoritative definition of the two run-level metrics
+(**summed-stage cost** and **critical-path wall-clock**) established there. Do
+not restate those definitions here; reference them so the three consumers cannot
+diverge.
+
+---
 
 ## Error Handling
 
