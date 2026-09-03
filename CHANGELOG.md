@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.0] — 2026-09-02
+
+A sprint run can now say where its wall-clock went. Per-stage timing was previously
+recoverable only by archaeology over archived transcripts — fragile, and wrong under
+worktree parallelism, where spawn order is not stage order.
+
+### Added
+- **Stage-timing telemetry** (`lib/workflows/_shared/stage_timing.mjs`, new): `createStageTimer(agentFn)` wraps every stage's `agent()` call once and records a `{ label, phase, startedAt, endedAt }` ISO-8601 interval in a `finally` — exactly one interval on the success, null-return, and throw paths, and a thrown stage is re-thrown untouched. `agentFn` is injected rather than closed over the runtime's `agent` global so the wrapper is unit-testable where that global is absent; the block is inlined into `sprint_pipeline.js` through the existing manifest/regen/drift machinery. Uses only `Date` (ADR-0006).
+- **Intervals, not durations**: each record is an absolute interval, so a consumer derives both summed-stage cost (`Σ(endedAt − startedAt)`) and critical-path wall-clock (`max(endedAt) − min(startedAt)`), and overlapping stories under worktree parallelism are not double-counted. ISO-8601 wall-clock, not `performance.now()`, so intervals from concurrent stories compose onto one timeline.
+- **`telemetry.report` config key** (`skills/shared/config.json`, default `true`, preserved by the install merge): gates whether the main thread *reports* timing, never whether the runtime captures it. `project-orchestrate` persists `_telemetry` to `.claude-scrum-skill/reports/stage-timing/` (gitignored) and renders it; `sprint-status` and `sprint-release` render from that persisted artifact when present and omit the section when absent.
+- **ADR-0013** records the split: the runtime captures and returns, the skill layer persists and reports, because the runtime can neither write files nor read config.
+
+### Changed
+- **`sprint_pipeline`'s return shape is now `{ stories, _telemetry }`** (was a bare `SprintStoryReturn[]`), described by the new `SprintPipelineReturnSchema`. The leading underscore marks `_telemetry` out-of-band — consumers iterate `stories` and skip it. The sole live consumer, `project-orchestrate`, was updated in the same change.
+
+### Fixed
+- **`artifact_freshness.mjs` header no longer claims to be inlined** (`lib/workflows/_shared/artifact_freshness.mjs`): the module was excised from the inline manifest and pipeline in EM-201 and kept as the executable specification of the Phase 2/3 stat-gate, but its header still described the old wiring. Corrected to describe what it is — a rule stated as code, deliberately not inlined and with no runtime caller.
+
+### Note
+Only `sprint_pipeline` is wired; the wrapper is script-agnostic but is applied where a
+consumer renders it, not speculatively. Intra-stage timing — verify's
+re-provision-versus-build split, the figure that would most directly settle the cost
+question — is deliberately out, because it would require an agent reporting its own step
+times, trusting the actor's account of itself, against ADR-0009.
+
 ## [2.7.1] — 2026-08-20
 
 An override that costs a run its parallelism now says so. Diagnosed from a real
