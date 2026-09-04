@@ -49,5 +49,5 @@ test('persistence is gated on the report flag, so report:false writes nothing to
 
   assert.match(block, /gated on `telemetry\.report`/);
   assert.match(block, /When it is `false`, skip persistence/);
-  assert.match(block, /capture is unconditional/);
+  assert.match(block, /capture is\s+unconditional/);
 });
