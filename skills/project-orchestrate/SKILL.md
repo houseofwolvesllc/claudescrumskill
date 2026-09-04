@@ -891,6 +891,27 @@ Once the report is fresh, print the phase transition summary:
 Proceeding to completion summary.
 ```
 
+### Step 15 Completion Gate — Stage-Timing Emission
+
+When `telemetry.report` is `true`, the run cannot be reported complete until this
+orchestration has actually written the stage-timing artifact. The persist step
+(Step 3 → **Persist stage-timing telemetry**) runs after every `sprint_pipeline`
+return, but it is skill-layer instruction — a run that skipped it must not print a
+Completion Summary that implies the timings were reported. This gate is the same
+shape as the Phase 2/3 gates: read the artifact against the run rather than trust
+the account of it. Read `latest.json`'s mtime and compare it against `Started` in
+the state file's Meta:
+
+```bash
+node -e "console.log(require('node:fs').statSync(process.argv[1]).mtime.toISOString())" \
+  .claude-scrum-skill/reports/stage-timing/latest.json
+```
+
+- **mtime at or after `Started`** → this run wrote the timings. The gate is clear.
+- **mtime before `Started`, or no file to read** (the command errors) → the persist step did not run this orchestration. Do NOT report the run complete as-is: write the retained `_telemetry` from this run's `sprint_pipeline` return(s) to `.claude-scrum-skill/reports/stage-timing/latest.json` now (per Step 3 → **Persist stage-timing telemetry**), then re-read. If the returns are no longer recoverable, say so plainly in the Completion Summary — a silently missing timing report is the exact failure this gate exists to catch.
+
+When `telemetry.report` is `false`, this gate does not apply.
+
 ### Step 15: Completion Summary
 
 Print a comprehensive summary of the entire orchestration run:
