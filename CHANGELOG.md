@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.8.1] — 2026-09-04
+
+Two defects a real 9-hour run surfaced: a verify check that failed correct trees,
+and a timing report that could go silently unwritten.
+
+### Fixed
+- **The tree-identity check compared an abbreviated SHA to a full hash** (`lib/workflows/_shared/assert_tree_identity.mjs`): `verify.observedHead` is `git rev-parse HEAD` — a full 40-char SHA — while the commit the implement stage reported (`impl.commits.at(-1)`) is often abbreviated, and sometimes trailed by its subject line. `mismatchedHead` compared the two with strict `===`, so a correct tree whose implement stage happened to report a short SHA was declared a misplacement and returned `infrastructure-failed`. In the run that surfaced it, six stories cascaded from this false negative, every one hand-verified sound. The comparison now reads the leading hex token off each side and matches an abbreviation as a prefix of the full SHA (git's own abbreviation model), with a 7-character floor so a coincidental short prefix cannot pass. The `treeIdentityAssertion` prompt was corrected in step — it now tells the stage the expected commit may be abbreviated, so the agent does not itself false-fail before the data check is even reached (`wrongTreeHead` trusts the agent's `treeIdentityFailure` as a second source, so fixing only the data comparison would have left the bug reachable through the prompt).
+
+### Added
+- **A completion gate enforces stage-timing emission** (`skills/project-orchestrate/SKILL.md`): telemetry is captured in code but persisted and rendered by the orchestrator SKILL layer, which is soft instruction — a run once completed all three phases and printed no timing report because the orchestrating agent did not honor the persist step. A stronger sentence is not the fix; the working Phase 2/3 gates read the artifact against the run rather than trust the agent's account of it, and the emission gate now does the same. When `telemetry.report` is `true`, the run cannot be reported complete unless `.claude-scrum-skill/reports/stage-timing/latest.json` was written this run (mtime at or after `Started`); an absent or stale artifact sends the orchestrator to persist the retained `_telemetry` before it may print the Completion Summary. Guarded by `test/orchestrate_telemetry_emission_gate.test.js`.
+
 ## [2.8.0] — 2026-09-02
 
 A sprint run can now say where its wall-clock went. Per-stage timing was previously
