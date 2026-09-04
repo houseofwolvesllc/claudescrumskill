@@ -434,7 +434,12 @@ For each entry in the workflow's return `stories` array:
 
 #### Persist stage-timing telemetry
 
-After handling the `stories` array, persist the return's out-of-band `_telemetry`
+This step is gated on `telemetry.report`. When it is `false`, skip persistence
+entirely: the timings still come back in the workflow return (capture is
+unconditional), but nothing is written to disk — the flag governs every surfacing
+of the data, on disk as much as on screen, and the Step 15 emission gate is
+likewise scoped to `true`. When it is `true`, after handling the `stories` array,
+persist the return's out-of-band `_telemetry`
 to `.claude-scrum-skill/reports/stage-timing/latest.json` (plus a timestamped
 sibling) so the out-of-band reporting skills — `sprint-status` and
 `sprint-release` — can render it. They run outside the pipeline and cannot see
@@ -890,6 +895,27 @@ Once the report is fresh, print the phase transition summary:
 
 Proceeding to completion summary.
 ```
+
+### Step 15 Completion Gate — Stage-Timing Emission
+
+When `telemetry.report` is `true`, the run cannot be reported complete until this
+orchestration has actually written the stage-timing artifact. The persist step
+(Step 3 → **Persist stage-timing telemetry**) runs after every `sprint_pipeline`
+return, but it is skill-layer instruction — a run that skipped it must not print a
+Completion Summary that implies the timings were reported. This gate is the same
+shape as the Phase 2/3 gates: read the artifact against the run rather than trust
+the account of it. Read `latest.json`'s mtime and compare it against `Started` in
+the state file's Meta:
+
+```bash
+node -e "console.log(require('node:fs').statSync(process.argv[1]).mtime.toISOString())" \
+  .claude-scrum-skill/reports/stage-timing/latest.json
+```
+
+- **mtime at or after `Started`** → this run wrote the timings. The gate is clear.
+- **mtime before `Started`, or no file to read** (the command errors) → the persist step did not run this orchestration. Do NOT report the run complete as-is: write the retained `_telemetry` from this run's `sprint_pipeline` return(s) to `.claude-scrum-skill/reports/stage-timing/latest.json` now (per Step 3 → **Persist stage-timing telemetry**), then re-read. If the returns are no longer recoverable, say so plainly in the Completion Summary — a silently missing timing report is the exact failure this gate exists to catch.
+
+When `telemetry.report` is `false`, this gate does not apply.
 
 ### Step 15: Completion Summary
 
