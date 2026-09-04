@@ -18,6 +18,9 @@ and a timing report that could go silently unwritten.
 ### Added
 - **A completion gate enforces stage-timing emission** (`skills/project-orchestrate/SKILL.md`): telemetry is captured in code but persisted and rendered by the orchestrator SKILL layer, which is soft instruction — a run once completed all three phases and printed no timing report because the orchestrating agent did not honor the persist step. A stronger sentence is not the fix; the working Phase 2/3 gates read the artifact against the run rather than trust the agent's account of it, and the emission gate now does the same. When `telemetry.report` is `true`, the run cannot be reported complete unless `.claude-scrum-skill/reports/stage-timing/latest.json` was written this run (mtime at or after `Started`); an absent or stale artifact sends the orchestrator to persist the retained `_telemetry` before it may print the Completion Summary. Guarded by `test/orchestrate_telemetry_emission_gate.test.js`.
 
+### Changed
+- **Persisting the stage-timing artifact is now gated on `telemetry.report`** (`skills/project-orchestrate/SKILL.md`): the flag governs every *surfacing* of the data, on disk as much as on screen, so `report: false` writes nothing to `.claude-scrum-skill/reports/stage-timing/` — the timings still return in the workflow payload (capture is unconditional), and the Step 15 emission gate is scoped to `true` to match. Closes the one loose end from the 2.8.0 emulation (a persist that ran regardless of the flag).
+
 ## [2.8.0] — 2026-09-02
 
 A sprint run can now say where its wall-clock went. Per-stage timing was previously

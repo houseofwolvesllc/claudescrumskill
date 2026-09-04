@@ -42,3 +42,12 @@ test('the gate is scoped to when reporting is enabled', () => {
   assert.match(gate, /`telemetry\.report` is `true`/);
   assert.match(gate, /When `telemetry\.report` is `false`, this gate does not apply/);
 });
+
+test('persistence is gated on the report flag, so report:false writes nothing to disk', () => {
+  const persist = skillText().split('#### Persist stage-timing telemetry')[1] ?? '';
+  const block = persist.split('####')[0];
+
+  assert.match(block, /gated on `telemetry\.report`/);
+  assert.match(block, /When it is `false`, skip persistence/);
+  assert.match(block, /capture is unconditional/);
+});

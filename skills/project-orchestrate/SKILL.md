@@ -434,7 +434,12 @@ For each entry in the workflow's return `stories` array:
 
 #### Persist stage-timing telemetry
 
-After handling the `stories` array, persist the return's out-of-band `_telemetry`
+This step is gated on `telemetry.report`. When it is `false`, skip persistence
+entirely: the timings still come back in the workflow return (capture is
+unconditional), but nothing is written to disk — the flag governs every surfacing
+of the data, on disk as much as on screen, and the Step 15 emission gate is
+likewise scoped to `true`. When it is `true`, after handling the `stories` array,
+persist the return's out-of-band `_telemetry`
 to `.claude-scrum-skill/reports/stage-timing/latest.json` (plus a timestamped
 sibling) so the out-of-band reporting skills — `sprint-status` and
 `sprint-release` — can render it. They run outside the pipeline and cannot see
